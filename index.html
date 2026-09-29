@@ -444,6 +444,13 @@ function comprobarAcceso() {
       renderizarHistorial();
       cargarSelectorJugadoresFicha();
       if(partidoActual.corriendo) iniciarTimerLoop();
+
+      // Muestra el nombre del usuario logueado en pantalla si está guardado
+  const usuarioActivo = sessionStorage.getItem('futbol_usuario_activo');
+  if (usuarioActivo) {
+    const elHeader = document.querySelector('header h1');
+    if (elHeader) elHeader.innerText = `Ayudante Míster (${usuarioActivo})`;
+  }
     };
 
     // CONTROL DEL NAVEGADOR Y PESTAÑAS
