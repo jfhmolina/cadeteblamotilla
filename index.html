@@ -32,17 +32,24 @@
     <div class="max-w-md mx-auto p-3 flex justify-between items-center">
       <div class="flex items-center gap-2">
         <div>
-          <h1 class="text-xs uppercase tracking-wider text-green-400 font-bold">Ayudante Míster</h1>
+          <!-- Cabecera dinámica con el usuario activo -->
+          <h1 id="tituloCabecera" class="text-xs uppercase tracking-wider text-green-400 font-bold">Ayudante Míster</h1>
           <!-- Orden dinámico del enfrentamiento -->
           <div id="matchHeaderInfo" class="text-xs text-gray-300 font-semibold truncate max-w-[200px]">
             Sin partido activo
           </div>
         </div>
       </div>
-      <!-- Temporizador Principal -->
-      <div class="text-right">
-        <div id="cronometro" class="text-2xl font-black font-mono tracking-tight text-white">00:00</div>
-        <span id="periodoTag" class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase font-bold">1ª Parte</span>
+      <!-- Temporizador Principal y Botón Salir -->
+      <div class="flex items-center gap-3">
+        <div class="text-right">
+          <div id="cronometro" class="text-2xl font-black font-mono tracking-tight text-white">00:00</div>
+          <span id="periodoTag" class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase font-bold">1ª Parte</span>
+        </div>
+        <!-- Botón Salir -->
+        <button onclick="cerrarSesion()" class="bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-700/50 px-2 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1" title="Cerrar sesión">
+          🚪 Salir
+        </button>
       </div>
     </div>
     <!-- Marcador en Vivo -->
@@ -53,7 +60,7 @@
     </div>
   </header>
 
-  <!-- NAVEGACIÓN POR PESTAÑAS (AÑADIDA PESTAÑA JUGADOR) -->
+  <!-- NAVEGACIÓN POR PESTAÑAS -->
   <nav class="bg-gray-800 border-b border-gray-700 text-[11px] font-semibold flex justify-around text-gray-400 overflow-x-auto">
     <button onclick="cambiarPestana('partido')" id="tab-partido" class="py-2.5 px-2 border-b-2 border-green-500 text-green-400 flex items-center gap-1 whitespace-nowrap">
       <span>⚽</span> Partido
@@ -146,7 +153,6 @@
       <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
         <h2 class="text-sm font-bold text-green-400 mb-1">Control de Minutos por Jugador</h2>
         <p class="text-xs text-gray-400 mb-3">Rastreo automático de tiempo jugado y archivo de minutos pasados.</p>
-        <!-- Buscador de jugador / partido -->
         <input type="text" id="filtroJugadorMinutos" onkeyup="filtrarMinutos()" placeholder="🔍 Buscar por nombre de jugador..." class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-green-500">
       </div>
 
@@ -174,7 +180,7 @@
       </div>
     </section>
 
-    <!-- PESTAÑA: FICHA DETALLADA DE JUGADOR (NUEVA PESTAÑA) -->
+    <!-- PESTAÑA: FICHA DETALLADA DE JUGADOR -->
     <section id="sec-fichaJugador" class="hidden space-y-4">
       <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 space-y-3">
         <h2 class="text-sm font-bold text-green-400">🔍 Ficha Estadística de Jugador</h2>
@@ -360,29 +366,46 @@
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
     // CONTROL DE ACCESO POR USUARIOS MULTIPLE
-const USUARIOS = {
-  "1234": "Entrenador",
-  "5678": "Segundo Entrenador",
-  "1111": "Delegado Campo",
-  "9999": "Delegado Equipo"
-};
+    const USUARIOS = {
+      "1234": "Entrenador",
+      "5678": "Segundo Entrenador",
+      "1111": "Delegado Campo",
+      "9999": "Delegado Equipo"
+    };
 
-function comprobarAcceso() {
-  const valor = document.getElementById('claveAcceso').value.trim();
-  
-  if (USUARIOS[valor]) {
-    // Guarda el nombre del usuario activo en la sesión
-    sessionStorage.setItem('futbol_acceso_ok', '1');
-    sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
-    
-    document.getElementById('pantallaAcceso').classList.add('hidden');
-    document.getElementById('appContenido').classList.remove('hidden');
-  } else {
-    document.getElementById('errorAcceso').classList.remove('hidden');
-    document.getElementById('claveAcceso').value = '';
-    document.getElementById('claveAcceso').focus();
-  }
-}
+    function actualizarNombreUsuarioHeader() {
+      const usuarioActivo = sessionStorage.getItem('futbol_usuario_activo');
+      const elHeader = document.getElementById('tituloCabecera');
+      if (elHeader) {
+        elHeader.innerText = usuarioActivo ? `Ayudante Míster (${usuarioActivo})` : 'Ayudante Míster';
+      }
+    }
+
+    function comprobarAcceso() {
+      const valor = document.getElementById('claveAcceso').value.trim();
+      
+      if (USUARIOS[valor]) {
+        sessionStorage.setItem('futbol_acceso_ok', '1');
+        sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
+        
+        actualizarNombreUsuarioHeader();
+        document.getElementById('pantallaAcceso').classList.add('hidden');
+        document.getElementById('appContenido').classList.remove('hidden');
+      } else {
+        document.getElementById('errorAcceso').classList.remove('hidden');
+        document.getElementById('claveAcceso').value = '';
+        document.getElementById('claveAcceso').focus();
+      }
+    }
+
+    function cerrarSesion() {
+      sessionStorage.removeItem('futbol_acceso_ok');
+      sessionStorage.removeItem('futbol_usuario_activo');
+      document.getElementById('claveAcceso').value = '';
+      document.getElementById('errorAcceso').classList.add('hidden');
+      document.getElementById('appContenido').classList.add('hidden');
+      document.getElementById('pantallaAcceso').classList.remove('hidden');
+    }
 
     // PLANTILLA BASE PRE-CARGADA
     const plantillaInicial = [
@@ -438,19 +461,13 @@ function comprobarAcceso() {
     }
 
     window.onload = function() {
+      actualizarNombreUsuarioHeader();
       guardarPlantilla();
       renderizarPlantilla();
       renderizarPartidoActual();
       renderizarHistorial();
       cargarSelectorJugadoresFicha();
       if(partidoActual.corriendo) iniciarTimerLoop();
-
-      // Muestra el nombre del usuario logueado en pantalla si está guardado
-  const usuarioActivo = sessionStorage.getItem('futbol_usuario_activo');
-  if (usuarioActivo) {
-    const elHeader = document.querySelector('header h1');
-    if (elHeader) elHeader.innerText = `Ayudante Míster (${usuarioActivo})`;
-  }
     };
 
     // CONTROL DEL NAVEGADOR Y PESTAÑAS
@@ -841,11 +858,10 @@ function comprobarAcceso() {
       guardarEstadoPartido();
     }
 
-    // RENDERIZAR PESTAÑA MINUTOS (ACTUAL + HISTORIAL DE MINUTOS)
+    // RENDERIZAR PESTAÑA MINUTOS
     function renderizarMinutos() {
       let filtro = (document.getElementById('filtroJugadorMinutos').value || '').toLowerCase();
       
-      // 1. Partido Actual
       let contActual = document.getElementById('listaMinutosJugadores');
       contActual.innerHTML = '';
 
@@ -885,7 +901,6 @@ function comprobarAcceso() {
         }
       }
 
-      // 2. Historial de Minutos (Partidos Finalizados)
       let contHistorial = document.getElementById('listaHistorialMinutos');
       contHistorial.innerHTML = '';
 
@@ -953,7 +968,7 @@ function comprobarAcceso() {
       renderizarMinutos();
     }
 
-    // LÓGICA DE LA NUEVA PESTAÑA: FICHA DETALLADA DEL JUGADOR
+    // FICHA DETALLADA DEL JUGADOR
     function cargarSelectorJugadoresFicha() {
       let sel = document.getElementById('selBuscarJugadorFicha');
       let actual = sel.value;
@@ -987,7 +1002,6 @@ function comprobarAcceso() {
       let jug = plantilla.find(j => j.id === jugId);
       if(!jug) return;
 
-      // Unir partido en directo e historial para un cómputo global
       let todosLosPartidos = [];
       if(partidoActual.convocados.length > 0 || partidoActual.rival) {
         todosLosPartidos.push({...partidoActual, esDirecto: true});
@@ -1006,7 +1020,7 @@ function comprobarAcceso() {
 
       todosLosPartidos.forEach(p => {
         let esConv = p.convocados && p.convocados.includes(jugId);
-        if(!esConv) return; // Si no estuvo convocado, no se procesa
+        if(!esConv) return;
 
         convocatorias++;
         let esTit = p.titulares && p.titulares.includes(jugId);
@@ -1059,7 +1073,6 @@ function comprobarAcceso() {
       });
 
       cont.innerHTML = `
-        <!-- ENCABEZADO JUGADOR -->
         <div class="bg-gradient-to-r from-gray-800 to-gray-800/80 p-3.5 rounded-xl border border-gray-700 flex justify-between items-center">
           <div>
             <h3 class="text-base font-bold text-white">${jug.nombre}</h3>
@@ -1068,7 +1081,6 @@ function comprobarAcceso() {
           <div class="text-3xl">🏃</div>
         </div>
 
-        <!-- RESUMEN EN TARJETAS/MÉTRICAS -->
         <div class="grid grid-cols-2 gap-2 text-center">
           <div class="bg-gray-800 p-2.5 rounded-xl border border-gray-700">
             <span class="text-[10px] text-gray-400 uppercase font-bold block">Convocatorias / Titular</span>
@@ -1091,7 +1103,6 @@ function comprobarAcceso() {
           </div>
         </div>
 
-        <!-- DESGLOSE POR PARTIDO -->
         <div class="pt-2">
           <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Desglose por Partido</h4>
           <div class="space-y-2">
@@ -1156,7 +1167,6 @@ function comprobarAcceso() {
       cambiarPestana('historial');
     }
 
-    // RENDERIZAR HISTORIAL Y FUNCIONES DE ELIMINACIÓN
     function renderizarHistorial() {
       let cont = document.getElementById('listaHistorial');
       let btnVaciar = document.getElementById('btnVaciarHistorial');
@@ -1214,7 +1224,6 @@ function comprobarAcceso() {
       });
     }
 
-    // ELIMINAR UN PARTIDO INDIVIDUAL DEL HISTORIAL
     function eliminarPartidoHistorial(idPartido) {
       if(!confirm("¿Estás seguro de que quieres borrar este partido del historial?")) return;
       
@@ -1224,7 +1233,6 @@ function comprobarAcceso() {
       renderizarMinutos();
     }
 
-    // VACIAR HISTORIAL COMPLETO
     function vaciarTodoElHistorial() {
       if(!confirm("¿⚠️ ATENCIÓN: Quieres borrar TODOS los partidos del historial? Esta acción no se puede deshacer.")) return;
       
@@ -1234,7 +1242,7 @@ function comprobarAcceso() {
       renderizarMinutos();
     }
 
-    // COPIAR SUCESOS PARTIDO EN DIRECTO
+    // EXPORTACIÓN A WHATSAPP
     function copiarReporteWhatsApp() {
       let esLoc = partidoActual.condicion === 'Local';
       let rivalNom = partidoActual.rival || 'Por definir';
@@ -1263,7 +1271,6 @@ function comprobarAcceso() {
       copiarAlPortapapeles(txt);
     }
 
-    // COPIAR MINUTOS DEL PARTIDO ACTIVO
     function copiarMinutosPartidoActualWhatsApp() {
       if(partidoActual.convocados.length === 0) {
         alert("No hay jugadores convocados en el partido activo.");
@@ -1289,7 +1296,6 @@ function comprobarAcceso() {
       copiarAlPortapapeles(txt);
     }
 
-    // COPIAR MINUTOS DE UN PARTIDO DEL HISTORIAL
     function copiarMinutosPartidoWhatsApp(idPartido) {
       let p = historialPartidos.find(x => x.id === idPartido);
       if(!p) return;
@@ -1317,7 +1323,6 @@ function comprobarAcceso() {
       copiarAlPortapapeles(txt);
     }
 
-    // COPIAR INFORME COMPLETO DE UN PARTIDO DEL HISTORIAL
     function copiarReportePartidoHistorialWhatsApp(idPartido) {
       let p = historialPartidos.find(x => x.id === idPartido);
       if(!p) return;
@@ -1349,7 +1354,6 @@ function comprobarAcceso() {
       copiarAlPortapapeles(txt);
     }
 
-    // FUNCIÓN GENÉRICA PARA COPIAR TEXTO
     function copiarAlPortapapeles(texto) {
       navigator.clipboard.writeText(texto).then(() => {
         alert("¡Copiado al portapapeles! Ya puedes pegarlo en WhatsApp.");
