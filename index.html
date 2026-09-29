@@ -410,7 +410,7 @@
       // Escuchar Cambios en la Plantilla
       db.ref('plantilla').on('value', snapshot => {
         const val = snapshot.val();
-        if (val) {
+        if (val && Array.isArray(val) && val.length > 0) {
           plantilla = val;
         } else {
           plantilla = plantillaInicial;
