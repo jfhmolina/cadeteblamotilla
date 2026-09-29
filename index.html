@@ -359,21 +359,30 @@
   <script>
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
-    // CONTROL DE ACCESO
-    const CLAVE_ACCESO = '9999';
+    // CONTROL DE ACCESO POR USUARIOS MULTIPLE
+const USUARIOS = {
+  "1234": "Entrenador",
+  "5678": "Segundo Entrenador",
+  "1111": "Delegado Campo",
+  "9999": "Delegado Equipo"
+};
 
-    function comprobarAcceso() {
-      const valor = document.getElementById('claveAcceso').value;
-      if (valor === CLAVE_ACCESO) {
-        sessionStorage.setItem('futbol_acceso_ok', '1');
-        document.getElementById('pantallaAcceso').classList.add('hidden');
-        document.getElementById('appContenido').classList.remove('hidden');
-      } else {
-        document.getElementById('errorAcceso').classList.remove('hidden');
-        document.getElementById('claveAcceso').value = '';
-        document.getElementById('claveAcceso').focus();
-      }
-    }
+function comprobarAcceso() {
+  const valor = document.getElementById('claveAcceso').value.trim();
+  
+  if (USUARIOS[valor]) {
+    // Guarda el nombre del usuario activo en la sesión
+    sessionStorage.setItem('futbol_acceso_ok', '1');
+    sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
+    
+    document.getElementById('pantallaAcceso').classList.add('hidden');
+    document.getElementById('appContenido').classList.remove('hidden');
+  } else {
+    document.getElementById('errorAcceso').classList.remove('hidden');
+    document.getElementById('claveAcceso').value = '';
+    document.getElementById('claveAcceso').focus();
+  }
+}
 
     // PLANTILLA BASE PRE-CARGADA
     const plantillaInicial = [
