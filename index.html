@@ -1156,11 +1156,24 @@
     function finalizarPartido() {
       if(!confirm("¿Deseas dar por finalizado este partido y guardarlo en el historial?")) return;
 
+      // Detener el cronómetro si estaba corriendo
+      clearInterval(timerInterval);
+
       historialPartidos.unshift({...partidoActual, id: Date.now()});
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
 
+      // Resetear el objeto de partido
       partidoActual = crearEstadoPartido();
       guardarEstadoPartido();
+
+      // Resetear el botón e interfaz del cronómetro
+      const btnTimer = document.getElementById('btnTimer');
+      if (btnTimer) {
+        btnTimer.innerText = '▶️ Iniciar Tiempo';
+        btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+      }
+      document.getElementById('periodoTag').innerText = '1ª Parte';
+
       renderizarPartidoActual();
       renderizarHistorial();
       renderizarMinutos();
