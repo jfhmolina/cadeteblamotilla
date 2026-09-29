@@ -7,7 +7,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    .modal-overlay { background-color: rgba(0, 0, 0, 0.75); }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -23,7 +22,7 @@
       <p class="text-gray-500 text-sm mb-6">Acceso exclusivo para el Cuerpo Técnico</p>
       
       <form onsubmit="event.preventDefault(); comprobarAcceso();">
-        <input type="password" id="claveAcceso" placeholder="Introduce tu PIN personal" 
+        <input type="password" id="claveAcceso" placeholder="PIN personal" 
                class="w-full text-center text-2xl tracking-widest px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-600 mb-4"
                autocomplete="off" autofocus>
         <button type="submit" class="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded-lg shadow-lg transition duration-200">
@@ -40,9 +39,9 @@
   <div id="appContenido" class="hidden">
     <!-- CABECERA -->
     <header class="bg-blue-900 text-white shadow-md sticky top-0 z-40">
-      <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
         <div>
-          <h1 id="tituloCabecera" class="text-xl md:text-2xl font-bold tracking-wide">C.D. La Motilla B</h1>
+          <h1 class="text-lg md:text-xl font-bold tracking-wide">C.D. La Motilla B</h1>
           <p id="subtituloUsuario" class="text-xs text-blue-200 font-medium"></p>
         </div>
         <button onclick="cerrarSesion()" class="bg-blue-800 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-blue-600 shadow">
@@ -53,14 +52,17 @@
       <!-- NAVEGACIÓN PRINCIPAL -->
       <nav class="bg-blue-950 px-4">
         <div class="max-w-4xl mx-auto flex justify-between overflow-x-auto">
+          <button onclick="cambiarPestana('convocatoria')" id="tab-convocatoria" class="pestana-btn text-blue-200 py-3 px-3 border-b-2 border-transparent font-medium text-sm whitespace-nowrap flex items-center gap-2">
+            <i class="fas fa-clipboard-list"></i> Convocatoria
+          </button>
           <button onclick="cambiarPestana('partido')" id="tab-partido" class="pestana-btn text-blue-200 py-3 px-3 border-b-2 border-transparent font-medium text-sm whitespace-nowrap flex items-center gap-2">
-            <i class="fas fa-[#]"></i> Partido en Directo
+            <i class="fas fa-stopwatch"></i> Partido
           </button>
           <button onclick="cambiarPestana('plantilla')" id="tab-plantilla" class="pestana-btn text-blue-200 py-3 px-3 border-b-2 border-transparent font-medium text-sm whitespace-nowrap flex items-center gap-2">
             <i class="fas fa-users"></i> Plantilla
           </button>
           <button onclick="cambiarPestana('fichas')" id="tab-fichas" class="pestana-btn text-blue-200 py-3 px-3 border-b-2 border-transparent font-medium text-sm whitespace-nowrap flex items-center gap-2">
-            <i class="fas fa-id-card"></i> Fichas Individuales
+            <i class="fas fa-id-card"></i> Fichas
           </button>
           <button onclick="cambiarPestana('historial')" id="tab-historial" class="pestana-btn text-blue-200 py-3 px-3 border-b-2 border-transparent font-medium text-sm whitespace-nowrap flex items-center gap-2">
             <i class="fas fa-history"></i> Historial
@@ -71,13 +73,45 @@
 
     <main class="max-w-4xl mx-auto p-4">
 
-      <!-- SECCIÓN 1: PARTIDO EN DIRECTO -->
-      <section id="sec-partido" class="seccion-contenido">
+      <!-- SECCIÓN: CONVOCATORIA PREVIA -->
+      <section id="sec-convocatoria" class="seccion-contenido">
+        <div class="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-200">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+              <i class="fas fa-clipboard-check text-blue-600"></i> Preparar Partido
+            </h2>
+            <div class="text-right">
+              <span class="text-xs text-gray-500 block">Convocados: <strong id="numConvocados">0</strong>/18</span>
+              <span class="text-xs text-gray-500 block">Titulares: <strong id="numTitulares">0</strong>/11</span>
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Rival del Partido</label>
+            <input type="text" id="inputRivalConvocatoria" placeholder="Ej: CD Montequinto" onchange="guardarNombreRival()" class="w-full p-2 border border-gray-300 rounded-lg text-sm font-semibold outline-none focus:border-blue-600">
+          </div>
+
+          <div class="flex gap-2 mb-4">
+            <button onclick="confirmarYComenzarPartido()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
+              <i class="fas fa-play-circle text-lg"></i> Iniciar Partido con esta Convocatoria
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md p-4 border border-gray-200">
+          <h3 class="font-bold text-gray-800 mb-2 text-sm uppercase tracking-wider text-gray-500">Seleccionar Jugadores de la Plantilla</h3>
+          <p class="text-xs text-gray-400 mb-3">Marca hasta 18 convocado(s) y elige quiénes son los 11 titulares.</p>
+          <div id="listaGestionConvocatoria" class="divide-y divide-gray-100"></div>
+        </div>
+      </section>
+
+      <!-- SECCIÓN: PARTIDO EN DIRECTO -->
+      <section id="sec-partido" class="seccion-contenido hidden">
         <div class="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-200">
           <div class="flex justify-between items-center mb-3">
             <div>
-              <span class="text-xs uppercase font-bold text-gray-400 tracking-wider">Jornada / Rival</span>
-              <input type="text" id="partidoRival" placeholder="Rival (ej: CD Montequinto)" class="block font-bold text-lg text-gray-800 border-b border-gray-300 focus:border-blue-600 outline-none w-full mt-0.5">
+              <span class="text-xs uppercase font-bold text-gray-400 tracking-wider">Rival</span>
+              <h2 id="displayRivalPartido" class="font-bold text-xl text-gray-800">Sin Rival</h2>
             </div>
             <div class="text-right">
               <span id="cronometro" class="text-3xl font-mono font-bold text-blue-900 block">00:00</span>
@@ -98,9 +132,9 @@
           </div>
         </div>
 
-        <!-- CONVOCATORIA Y CAMBIOS -->
+        <!-- CAMPO Y BANQUILLO -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- JUGADORES EN CAMPO -->
+          <!-- TITULARES EN CAMPO -->
           <div class="bg-white rounded-xl shadow-md p-4 border border-green-200">
             <div class="flex justify-between items-center mb-3 pb-2 border-b border-green-100">
               <h3 class="font-bold text-green-900 flex items-center gap-2">
@@ -110,7 +144,7 @@
             <div id="listaCampo" class="space-y-2"></div>
           </div>
 
-          <!-- BANQUILLO -->
+          <!-- SUPLENTES EN BANQUILLO -->
           <div class="bg-white rounded-xl shadow-md p-4 border border-yellow-200">
             <div class="flex justify-between items-center mb-3 pb-2 border-b border-yellow-100">
               <h3 class="font-bold text-yellow-900 flex items-center gap-2">
@@ -122,7 +156,7 @@
         </div>
       </section>
 
-      <!-- SECCIÓN 2: PLANTILLA -->
+      <!-- SECCIÓN: PLANTILLA -->
       <section id="sec-plantilla" class="seccion-contenido hidden">
         <div class="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-200">
           <h3 class="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
@@ -143,7 +177,7 @@
         </div>
       </section>
 
-      <!-- SECCIÓN 3: FICHAS INDIVIDUALES -->
+      <!-- SECCIÓN: FICHAS INDIVIDUALES -->
       <section id="sec-fichas" class="seccion-contenido hidden">
         <div class="bg-white rounded-xl shadow-md p-4 mb-4 border border-gray-200">
           <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Seleccionar Jugador</label>
@@ -181,7 +215,7 @@
         </div>
       </section>
 
-      <!-- SECCIÓN 4: HISTORIAL DE PARTIDOS -->
+      <!-- SECCIÓN: HISTORIAL DE PARTIDOS -->
       <section id="sec-historial" class="seccion-contenido hidden">
         <div class="bg-white rounded-xl shadow-md p-4 border border-gray-200">
           <h3 class="font-bold text-gray-800 mb-3 text-lg">Partidos Registrados</h3>
@@ -192,25 +226,22 @@
     </main>
   </div>
 
-  <!-- JAVASCRIPT LÓGICA -->
   <script>
     // ========================================================
-    // CONFIGURACIÓN DE USUARIOS Y CONTROL DE ACCESO MULTIUSUARIO
+    // AUTENTICACIÓN MULTIUSUARIO
     // ========================================================
     const USUARIOS = {
-      "1234": "Entrenador",
+      "1234": "Míster (Entrenador)",
       "5678": "Segundo Entrenador",
-      "1111": "Delegado Campo",
-      "9999": "Delegado Equipo"
+      "1111": "Preparador Físico",
+      "0000": "Delegado"
     };
 
     function comprobarAcceso() {
       const valor = document.getElementById('claveAcceso').value.trim();
-      
       if (USUARIOS[valor]) {
         sessionStorage.setItem('futbol_acceso_ok', '1');
         sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
-        
         mostrarApp();
       } else {
         document.getElementById('errorAcceso').classList.remove('hidden');
@@ -222,7 +253,6 @@
     function mostrarApp() {
       document.getElementById('pantallaAcceso').classList.add('hidden');
       document.getElementById('appContenido').classList.remove('hidden');
-      
       const usuarioActivo = sessionStorage.getItem('futbol_usuario_activo');
       if (usuarioActivo) {
         document.getElementById('subtituloUsuario').innerText = `Usuario: ${usuarioActivo}`;
@@ -236,7 +266,7 @@
     }
 
     // ========================================================
-    // ESTADO GLOBAL DE LA APLICACIÓN
+    // ESTADO GLOBAL
     // ========================================================
     let plantilla = JSON.parse(localStorage.getItem('futbol_plantilla')) || [
       { id: 1, nombre: 'Jugador Ejemplo 1', dorsal: 1 },
@@ -245,6 +275,14 @@
 
     let historialPartidos = JSON.parse(localStorage.getItem('futbol_historial')) || [];
 
+    // Estado de Convocatoria en borrador
+    let estadoConvocatoria = JSON.parse(localStorage.getItem('futbol_borrador_convocatoria')) || {
+      rival: '',
+      convocadosIds: [],
+      titularesIds: []
+    };
+
+    // Estado del Partido Activo
     let partidoActual = JSON.parse(localStorage.getItem('futbol_partido_actual')) || {
       rival: '',
       segundos: 0,
@@ -260,23 +298,22 @@
     // INICIALIZACIÓN
     // ========================================================
     window.onload = function() {
-      // Verificar si ya está logueado en esta sesión
       if (sessionStorage.getItem('futbol_acceso_ok') === '1') {
         mostrarApp();
       }
 
       guardarPlantilla();
       renderizarPlantilla();
+      renderizarGestionConvocatoria();
       renderizarPartidoActual();
       renderizarHistorial();
       cargarSelectorJugadoresFicha();
-      if(partidoActual.corriendo) iniciarTimerLoop();
       
-      // Activar primera pestaña por defecto
-      cambiarPestana('partido');
+      if(partidoActual.corriendo) iniciarTimerLoop();
+
+      cambiarPestana(partidoActual.campo.length > 0 ? 'partido' : 'convocatoria');
     };
 
-    // NAVEGACIÓN ENTRE PESTAÑAS
     function cambiarPestana(nombrePestana) {
       document.querySelectorAll('.seccion-contenido').forEach(sec => sec.classList.add('hidden'));
       document.querySelectorAll('.pestana-btn').forEach(btn => {
@@ -286,8 +323,10 @@
 
       document.getElementById(`sec-${nombrePestana}`).classList.remove('hidden');
       const tabActivo = document.getElementById(`tab-${nombrePestana}`);
-      tabActivo.classList.add('border-white', 'text-white', 'font-bold');
-      tabActivo.classList.remove('text-blue-200', 'border-transparent');
+      if(tabActivo) {
+        tabActivo.classList.add('border-white', 'text-white', 'font-bold');
+        tabActivo.classList.remove('text-blue-200', 'border-transparent');
+      }
     }
 
     // ========================================================
@@ -302,7 +341,7 @@
       contenedor.innerHTML = '';
 
       if(plantilla.length === 0) {
-        contenedor.innerHTML = '<p class="text-gray-400 text-sm py-2">No hay jugadores registrados.</p>';
+        contenedor.innerHTML = '<p class="text-gray-400 text-sm py-2">No hay jugadores en la plantilla.</p>';
         return;
       }
 
@@ -337,6 +376,7 @@
       plantilla.push(nuevo);
       guardarPlantilla();
       renderizarPlantilla();
+      renderizarGestionConvocatoria();
       cargarSelectorJugadoresFicha();
 
       nombreInput.value = '';
@@ -348,22 +388,139 @@
         plantilla = plantilla.filter(j => j.id !== id);
         guardarPlantilla();
         renderizarPlantilla();
+        renderizarGestionConvocatoria();
         cargarSelectorJugadoresFicha();
       }
     }
 
     // ========================================================
-    // LÓGICA DE CRONÓMETRO Y PARTIDO
+    // PREPARACIÓN DE CONVOCATORIA (18 Y 11 TITULARES)
+    // ========================================================
+    function guardarNombreRival() {
+      estadoConvocatoria.rival = document.getElementById('inputRivalConvocatoria').value.trim();
+      localStorage.setItem('futbol_borrador_convocatoria', JSON.stringify(estadoConvocatoria));
+    }
+
+    function renderizarGestionConvocatoria() {
+      document.getElementById('inputRivalConvocatoria').value = estadoConvocatoria.rival || '';
+      const contenedor = document.getElementById('listaGestionConvocatoria');
+      contenedor.innerHTML = '';
+
+      document.getElementById('numConvocados').innerText = estadoConvocatoria.convocadosIds.length;
+      document.getElementById('numTitulares').innerText = estadoConvocatoria.titularesIds.length;
+
+      if(plantilla.length === 0) {
+        contenedor.innerHTML = '<p class="text-gray-400 text-sm py-2">Primero añade jugadores en la pestaña Plantilla.</p>';
+        return;
+      }
+
+      plantilla.forEach(j => {
+        const esConvocado = estadoConvocatoria.convocadosIds.includes(j.id);
+        const esTitular = estadoConvocatoria.titularesIds.includes(j.id);
+
+        const row = document.createElement('div');
+        row.className = `flex justify-between items-center py-2 px-1 border-b border-gray-100 ${esConvocado ? 'bg-blue-50/50' : ''}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <input type="checkbox" ${esConvocado ? 'checked' : ''} onchange="toggleConvocado(${j.id})" class="w-5 h-5 text-blue-600 rounded">
+            <span class="w-7 h-7 rounded-full bg-gray-200 text-gray-700 font-bold flex items-center justify-center text-xs">#${j.dorsal}</span>
+            <span class="font-medium text-sm text-gray-800">${j.nombre}</span>
+          </div>
+          <div>
+            ${esConvocado ? `
+              <button onclick="toggleTitular(${j.id})" class="px-3 py-1 rounded text-xs font-bold ${esTitular ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'}">
+                ${esTitular ? 'Titular (11)' : 'Banquillo'}
+              </button>
+            ` : '<span class="text-xs text-gray-400 italic">No convocado</span>'}
+          </div>
+        `;
+        contenedor.appendChild(row);
+      });
+    }
+
+    function toggleConvocado(id) {
+      const idx = estadoConvocatoria.convocadosIds.indexOf(id);
+      if (idx > -1) {
+        // Quitar de convocados y de titulares
+        estadoConvocatoria.convocadosIds.splice(idx, 1);
+        const idxTitular = estadoConvocatoria.titularesIds.indexOf(id);
+        if (idxTitular > -1) estadoConvocatoria.titularesIds.splice(idxTitular, 1);
+      } else {
+        if (estadoConvocatoria.convocadosIds.length >= 18) {
+          alert('¡Máximo 18 convocados permitidos!');
+          renderizarGestionConvocatoria();
+          return;
+        }
+        estadoConvocatoria.convocadosIds.push(id);
+      }
+      localStorage.setItem('futbol_borrador_convocatoria', JSON.stringify(estadoConvocatoria));
+      renderizarGestionConvocatoria();
+    }
+
+    function toggleTitular(id) {
+      const idx = estadoConvocatoria.titularesIds.indexOf(id);
+      if (idx > -1) {
+        estadoConvocatoria.titularesIds.splice(idx, 1);
+      } else {
+        if (estadoConvocatoria.titularesIds.length >= 11) {
+          alert('Ya has marcado 11 titulares.');
+          return;
+        }
+        estadoConvocatoria.titularesIds.push(id);
+      }
+      localStorage.setItem('futbol_borrador_convocatoria', JSON.stringify(estadoConvocatoria));
+      renderizarGestionConvocatoria();
+    }
+
+    function confirmarYComenzarPartido() {
+      if (estadoConvocatoria.convocadosIds.length === 0) {
+        alert('Debes convocar al menos a un jugador.');
+        return;
+      }
+
+      if (partidoActual.campo.length > 0 || partidoActual.banquillo.length > 0) {
+        if (!confirm('Ya hay un partido iniciado. ¿Quieres sobreescribirlo con esta nueva convocatoria?')) return;
+      }
+
+      const campo = [];
+      const banquillo = [];
+
+      estadoConvocatoria.convocadosIds.forEach(id => {
+        const jugadorObj = plantilla.find(j => j.id === id);
+        if (jugadorObj) {
+          const jugadorEstructura = { ...jugadorObj, goles: 0, amarillas: 0, rojas: 0, segundosJugados: 0 };
+          if (estadoConvocatoria.titularesIds.includes(id)) {
+            campo.push(jugadorEstructura);
+          } else {
+            banquillo.push(jugadorEstructura);
+          }
+        }
+      });
+
+      partidoActual = {
+        rival: estadoConvocatoria.rival || 'Sin Rival',
+        segundos: 0,
+        corriendo: false,
+        parte: 1,
+        campo: campo,
+        banquillo: banquillo
+      };
+
+      localStorage.setItem('futbol_partido_actual', JSON.stringify(partidoActual));
+      renderizarPartidoActual();
+      cambiarPestana('partido');
+    }
+
+    // ========================================================
+    // PARTIDO Y CRONÓMETRO
     // ========================================================
     function alternarTimer() {
       if(partidoActual.corriendo) {
-        // Pausar
         clearInterval(timerInterval);
         partidoActual.corriendo = false;
         document.getElementById('btnTimerStart').classList.replace('bg-yellow-600', 'bg-green-600');
         document.getElementById('labelTimerStart').innerText = 'Reanudar';
       } else {
-        // Iniciar
         partidoActual.corriendo = true;
         iniciarTimerLoop();
         document.getElementById('btnTimerStart').classList.replace('bg-green-600', 'bg-yellow-600');
@@ -377,10 +534,7 @@
       timerInterval = setInterval(() => {
         partidoActual.segundos++;
         actualizarRelojUI();
-        
-        // Sumar minutos a jugadores en campo
         partidoActual.campo.forEach(j => j.segundosJugados = (j.segundosJugados || 0) + 1);
-        
         if(partidoActual.segundos % 5 === 0) guardarEstadoPartido();
       }, 1000);
     }
@@ -398,12 +552,12 @@
     }
 
     function guardarEstadoPartido() {
-      partidoActual.rival = document.getElementById('partidoRival').value;
       localStorage.setItem('futbol_partido_actual', JSON.stringify(partidoActual));
     }
 
     function renderizarPartidoActual() {
-      document.getElementById('partidoRival').value = partidoActual.rival || '';
+      document.getElementById('displayRivalPartido').innerText = partidoActual.rival || 'Sin Rival';
+      document.getElementById('partePartidoText').innerText = `${partidoActual.parte || 1}ª Parte`;
       actualizarRelojUI();
       
       const listaCampo = document.getElementById('listaCampo');
@@ -412,15 +566,9 @@
       listaCampo.innerHTML = '';
       listaBanquillo.innerHTML = '';
 
-      // Si no hay nadie en partido, poblar banquillo con la plantilla
-      if (partidoActual.campo.length === 0 && partidoActual.banquillo.length === 0) {
-        partidoActual.banquillo = plantilla.map(j => ({ ...j, goles: 0, amarillas: 0, rojas: 0, segundosJugados: 0 }));
-      }
-
       document.getElementById('countCampo').innerText = partidoActual.campo.length;
       document.getElementById('countBanquillo').innerText = partidoActual.banquillo.length;
 
-      // Render Campo
       partidoActual.campo.forEach(j => {
         const item = document.createElement('div');
         item.className = 'bg-green-50 p-2.5 rounded-lg border border-green-200 flex justify-between items-center';
@@ -430,23 +578,25 @@
             <span class="text-xs text-gray-500 block">${Math.floor((j.segundosJugados || 0) / 60)}' jugados</span>
           </div>
           <div class="flex items-center gap-1">
-            <button onclick="anotarEvento(${j.id}, 'goles')" class="px-2 py-1 bg-white border rounded text-xs">⚽ ${j.goles || 0}</button>
-            <button onclick="anotarEvento(${j.id}, 'amarillas')" class="px-2 py-1 bg-yellow-100 border border-yellow-300 rounded text-xs">🟨 ${j.amarillas || 0}</button>
-            <button onclick="moverABanquillo(${j.id})" class="ml-2 p-1.5 bg-yellow-500 text-white rounded text-xs"><i class="fas fa-arrow-down"></i></button>
+            <button onclick="anotarEvento(${j.id}, 'goles')" class="px-2 py-1 bg-white border rounded text-xs font-semibold">⚽ ${j.goles || 0}</button>
+            <button onclick="anotarEvento(${j.id}, 'amarillas')" class="px-2 py-1 bg-yellow-100 border border-yellow-300 rounded text-xs font-semibold">🟨 ${j.amarillas || 0}</button>
+            <button onclick="moverABanquillo(${j.id})" class="ml-2 p-1.5 bg-yellow-500 text-white rounded text-xs" title="Sustituir"><i class="fas fa-arrow-down"></i></button>
           </div>
         `;
         listaCampo.appendChild(item);
       });
 
-      // Render Banquillo
       partidoActual.banquillo.forEach(j => {
         const item = document.createElement('div');
         item.className = 'bg-yellow-50 p-2.5 rounded-lg border border-yellow-200 flex justify-between items-center';
         item.innerHTML = `
           <div>
             <span class="font-bold text-gray-800">#${j.dorsal} ${j.nombre}</span>
+            <span class="text-xs text-gray-500 block">${Math.floor((j.segundosJugados || 0) / 60)}' jugados</span>
           </div>
-          <button onclick="moverACampo(${j.id})" class="p-1.5 bg-green-600 text-white rounded text-xs"><i class="fas fa-arrow-up"></i> Entrar</button>
+          <button onclick="moverACampo(${j.id})" class="p-1.5 bg-green-600 text-white rounded text-xs font-semibold flex items-center gap-1">
+            <i class="fas fa-arrow-up"></i> Entrar
+          </button>
         `;
         listaBanquillo.appendChild(item);
       });
@@ -482,7 +632,7 @@
     }
 
     function finalizarPartido() {
-      if (!confirm('¿Guardar y finalizar este partido en el historial?')) return;
+      if (!confirm('¿Finalizar y guardar este partido en el historial?')) return;
 
       clearInterval(timerInterval);
       partidoActual.corriendo = false;
@@ -497,12 +647,12 @@
       historialPartidos.unshift(registro);
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
 
-      // Reset partido
       partidoActual = { rival: '', segundos: 0, corriendo: false, parte: 1, campo: [], banquillo: [] };
       guardarEstadoPartido();
       renderizarPartidoActual();
       renderizarHistorial();
       alert('¡Partido guardado con éxito!');
+      cambiarPestana('convocatoria');
     }
 
     // ========================================================
@@ -555,11 +705,11 @@
       lista.innerHTML = '';
 
       if (historialPartidos.length === 0) {
-        lista.innerHTML = '<p class="text-gray-400 text-sm">No hay partidos finalizados en el historial.</p>';
+        lista.innerHTML = '<p class="text-gray-400 text-sm">No hay partidos registrados aún.</p>';
         return;
       }
 
-      historialPartidos.forEach((p, index) => {
+      historialPartidos.forEach(p => {
         const item = document.createElement('div');
         item.className = 'bg-white p-3 rounded-lg border border-gray-200 shadow-sm';
         item.innerHTML = `
