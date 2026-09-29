@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ayudante Míster - La Motilla B</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- LIBRERÍAS DE FIREBASE (SINCRONIZACIÓN EN TIEMPO REAL) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
   <style>
-    /* Estilos personalizados para optimizar en móviles */
     body { -webkit-tap-highlight-color: transparent; }
     .no-select { user-select: none; }
   </style>
@@ -32,27 +36,22 @@
     <div class="max-w-md mx-auto p-3 flex justify-between items-center">
       <div class="flex items-center gap-2">
         <div>
-          <!-- Cabecera dinámica con el usuario activo -->
           <h1 id="tituloCabecera" class="text-xs uppercase tracking-wider text-green-400 font-bold">Ayudante Míster</h1>
-          <!-- Orden dinámico del enfrentamiento -->
           <div id="matchHeaderInfo" class="text-xs text-gray-300 font-semibold truncate max-w-[200px]">
             Sin partido activo
           </div>
         </div>
       </div>
-      <!-- Temporizador Principal y Botón Salir -->
       <div class="flex items-center gap-3">
         <div class="text-right">
           <div id="cronometro" class="text-2xl font-black font-mono tracking-tight text-white">00:00</div>
           <span id="periodoTag" class="text-[10px] bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded uppercase font-bold">1ª Parte</span>
         </div>
-        <!-- Botón Salir -->
         <button onclick="cerrarSesion()" class="bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-700/50 px-2 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1" title="Cerrar sesión">
           🚪 Salir
         </button>
       </div>
     </div>
-    <!-- Marcador en Vivo -->
     <div class="max-w-md mx-auto px-3 pb-2 flex items-center justify-center gap-3">
       <span id="marcadorIzquierdaNombre" class="text-xs font-bold text-gray-300 truncate max-w-[110px]">La Motilla B</span>
       <span id="marcadorTexto" class="text-xl font-black text-white bg-gray-900/60 px-3 py-0.5 rounded-lg tracking-wider">0 - 0</span>
@@ -60,7 +59,7 @@
     </div>
   </header>
 
-  <!-- NAVEGACIÓN POR PESTAÑAS -->
+  <!-- NAVEGACIÓN -->
   <nav class="bg-gray-800 border-b border-gray-700 text-[11px] font-semibold flex justify-around text-gray-400 overflow-x-auto">
     <button onclick="cambiarPestana('partido')" id="tab-partido" class="py-2.5 px-2 border-b-2 border-green-500 text-green-400 flex items-center gap-1 whitespace-nowrap">
       <span>⚽</span> Partido
@@ -79,18 +78,15 @@
     </button>
   </nav>
 
-  <!-- CONTENIDO PRINCIPAL -->
+  <!-- CONTENIDO -->
   <main class="max-w-md mx-auto p-3">
 
-    <!-- PESTAÑA: PARTIDO (EN DIRECTO) -->
+    <!-- PARTIDO -->
     <section id="sec-partido" class="space-y-4">
-
-      <!-- Convocatoria -->
       <button onclick="prepararPartidoModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm shadow flex items-center justify-center gap-1">
         ⚙️ Convocatoria y Datos
       </button>
 
-      <!-- Panel de Control de Tiempo -->
       <div class="bg-gray-800 rounded-xl p-3 border border-gray-700 shadow flex items-center justify-between gap-2">
         <button id="btnTimer" onclick="toggleTimer()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1">
           ▶️ Iniciar Tiempo
@@ -100,7 +96,6 @@
         </button>
       </div>
 
-      <!-- BOTONERA DE ACCIÓN RÁPIDA -->
       <div class="grid grid-cols-2 gap-2.5">
         <button onclick="abrirModalGol()" class="bg-blue-600 hover:bg-blue-500 text-white p-3.5 rounded-xl font-bold text-base shadow flex flex-col items-center justify-center gap-1 border border-blue-400/30">
           <span class="text-2xl">⚽</span>
@@ -127,7 +122,6 @@
         ⚽ + GOL RIVAL
       </button>
 
-      <!-- FEED DE SUCESOS (LÍNEA DE TIEMPO) -->
       <div>
         <div class="flex justify-between items-center mb-2">
           <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Cronología del Partido</h2>
@@ -135,12 +129,9 @@
             📲 Copiar para WhatsApp
           </button>
         </div>
-        <div id="feedEventos" class="space-y-2">
-          <!-- Los eventos se cargarán dinámicamente aquí -->
-        </div>
+        <div id="feedEventos" class="space-y-2"></div>
       </div>
 
-      <!-- BOTÓN FINALIZAR PARTIDO -->
       <div class="pt-4 border-t border-gray-800">
         <button onclick="finalizarPartido()" class="w-full bg-red-700 hover:bg-red-600 text-white py-3 rounded-xl font-bold text-sm shadow">
           🏁 Finalizar y Guardar Partido en Historial
@@ -148,7 +139,7 @@
       </div>
     </section>
 
-    <!-- PESTAÑA: TIEMPO JUGADO (MINUTOS + HISTORIAL DE MINUTOS) -->
+    <!-- MINUTOS -->
     <section id="sec-minutos" class="hidden space-y-4">
       <div class="bg-gray-800 p-3 rounded-xl border border-gray-700">
         <h2 class="text-sm font-bold text-green-400 mb-1">Control de Minutos por Jugador</h2>
@@ -156,7 +147,6 @@
         <input type="text" id="filtroJugadorMinutos" onkeyup="filtrarMinutos()" placeholder="🔍 Buscar por nombre de jugador..." class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-green-500">
       </div>
 
-      <!-- Partido Actual -->
       <div>
         <div class="flex justify-between items-center mb-2">
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Partido Actual en Directo</h3>
@@ -164,41 +154,30 @@
             📲 Copiar Minutos
           </button>
         </div>
-        <div id="listaMinutosJugadores" class="space-y-2">
-          <!-- Generado dinámicamente -->
-        </div>
+        <div id="listaMinutosJugadores" class="space-y-2"></div>
       </div>
 
-      <!-- Historial de Minutos en Partidos Anteriores -->
       <div class="pt-3 border-t border-gray-800">
         <div class="flex justify-between items-center mb-2">
           <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Historial de Minutos (Partidos Pasados)</h3>
         </div>
-        <div id="listaHistorialMinutos" class="space-y-3">
-          <!-- Generado dinámicamente -->
-        </div>
+        <div id="listaHistorialMinutos" class="space-y-3"></div>
       </div>
     </section>
 
-    <!-- PESTAÑA: FICHA DETALLADA DE JUGADOR -->
+    <!-- FICHA -->
     <section id="sec-fichaJugador" class="hidden space-y-4">
       <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 space-y-3">
         <h2 class="text-sm font-bold text-green-400">🔍 Ficha Estadística de Jugador</h2>
         <div>
           <label class="text-xs text-gray-400 block mb-1">Selecciona o busca un jugador:</label>
-          <select id="selBuscarJugadorFicha" onchange="mostrarEstadisticasJugador()" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-green-500">
-            <!-- Cargado dinámicamente -->
-          </select>
+          <select id="selBuscarJugadorFicha" onchange="mostrarEstadisticasJugador()" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-green-500"></select>
         </div>
       </div>
-
-      <!-- TARJETA DE ESTADÍSTICAS DETALLADAS -->
-      <div id="contenedorEstadisticasJugador" class="space-y-3">
-        <!-- Generado dinámicamente -->
-      </div>
+      <div id="contenedorEstadisticasJugador" class="space-y-3"></div>
     </section>
 
-    <!-- PESTAÑA: PLANTILLA GENERAL -->
+    <!-- PLANTILLA -->
     <section id="sec-plantilla" class="hidden space-y-3">
       <div class="flex justify-between items-center">
         <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Jugadores La Motilla B</h2>
@@ -206,12 +185,10 @@
           + Añadir Jugador
         </button>
       </div>
-      <div id="listaPlantilla" class="space-y-1.5">
-        <!-- Carga de la plantilla -->
-      </div>
+      <div id="listaPlantilla" class="space-y-1.5"></div>
     </section>
 
-    <!-- PESTAÑA: HISTORIAL CON OPCIÓN DE BORRADO -->
+    <!-- HISTORIAL -->
     <section id="sec-historial" class="hidden space-y-3">
       <div class="flex justify-between items-center mb-2">
         <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Partidos Guardados</h2>
@@ -219,27 +196,17 @@
           🗑️ Vaciar todo
         </button>
       </div>
-      <div id="listaHistorial" class="space-y-3">
-        <!-- Partidos pasados -->
-      </div>
+      <div id="listaHistorial" class="space-y-3"></div>
     </section>
 
   </main>
 
   </div>
 
-  <script>
-    if (sessionStorage.getItem('futbol_acceso_ok') === '1') {
-      document.getElementById('pantallaAcceso').classList.add('hidden');
-      document.getElementById('appContenido').classList.remove('hidden');
-    }
-  </script>
-
-  <!-- MODAL: PREPARAR CONVOCATORIA Y 11 -->
+  <!-- MODALES -->
   <div id="modalConvocatoria" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-3">
     <div class="bg-gray-800 w-full max-w-md rounded-2xl p-4 border border-gray-700 max-h-[90vh] flex flex-col">
       <h3 class="text-base font-bold text-white mb-2">Configurar Partido</h3>
-      
       <div class="space-y-2 mb-3">
         <input type="text" id="cfgRival" placeholder="Nombre del Equipo Rival" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-green-500">
         <div class="grid grid-cols-2 gap-2">
@@ -250,37 +217,28 @@
           </select>
         </div>
       </div>
-
       <div class="flex justify-between text-xs font-bold mb-2 text-gray-300">
         <span>Selecciona Convocados y Titulares:</span>
         <span id="contadorConvocados" class="text-green-400">0/18 conv. | 0/11 tit.</span>
       </div>
-
-      <div id="selectorConvocatoria" class="flex-1 overflow-y-auto space-y-1.5 pr-1 border border-gray-700 rounded-lg p-2 bg-gray-900/50 mb-3">
-        <!-- Lista seleccionable -->
-      </div>
-
+      <div id="selectorConvocatoria" class="flex-1 overflow-y-auto space-y-1.5 pr-1 border border-gray-700 rounded-lg p-2 bg-gray-900/50 mb-3"></div>
       <button onclick="guardarConfiguracionPartido()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-lg text-sm">
         Guardar e Iniciar Partido
       </button>
     </div>
   </div>
 
-  <!-- MODAL: GOL Y ASISTENCIA -->
   <div id="modalGol" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-3">
     <div class="bg-gray-800 w-full max-w-md rounded-2xl p-4 border border-gray-700 space-y-3">
       <h3 class="text-base font-bold text-white">⚽ Registrar Gol</h3>
-      
       <div>
         <label class="text-xs font-semibold text-gray-400 block mb-1">Autor del Gol (En campo):</label>
         <select id="selGoleador" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
       </div>
-
       <div>
         <label class="text-xs font-semibold text-gray-400 block mb-1">Asistencia (En campo - Opcional):</label>
         <select id="selAsistente" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
       </div>
-
       <div class="flex gap-2 pt-2">
         <button onclick="cerrarModal('modalGol')" class="flex-1 bg-gray-700 text-white py-2 rounded-lg text-xs font-bold">Cancelar</button>
         <button onclick="confirmarGol()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold">Guardar Gol</button>
@@ -288,21 +246,17 @@
     </div>
   </div>
 
-  <!-- MODAL: SUSTITUCIÓN -->
   <div id="modalSustitucion" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-3">
     <div class="bg-gray-800 w-full max-w-md rounded-2xl p-4 border border-gray-700 space-y-3">
       <h3 class="text-base font-bold text-purple-400">🔁 Registrar Sustitución</h3>
-      
       <div>
         <label class="text-xs font-semibold text-red-400 block mb-1">🔴 Jugador que SALE (En campo):</label>
         <select id="selSale" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
       </div>
-
       <div>
         <label class="text-xs font-semibold text-green-400 block mb-1">🟢 Jugador que ENTRA (Banquillo):</label>
         <select id="selEntra" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
       </div>
-
       <div class="flex gap-2 pt-2">
         <button onclick="cerrarModal('modalSustitucion')" class="flex-1 bg-gray-700 text-white py-2 rounded-lg text-xs font-bold">Cancelar</button>
         <button onclick="confirmarSustitucion()" class="flex-1 bg-purple-600 text-white py-2 rounded-lg text-xs font-bold">Realizar Cambio</button>
@@ -310,16 +264,13 @@
     </div>
   </div>
 
-  <!-- MODAL: TARJETAS -->
   <div id="modalTarjeta" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-3">
     <div class="bg-gray-800 w-full max-w-md rounded-2xl p-4 border border-gray-700 space-y-3">
       <h3 class="text-base font-bold text-amber-400">🟨 / 🟥 Tarjeta</h3>
-      
       <div>
         <label class="text-xs font-semibold text-gray-400 block mb-1">Jugador Amonestado:</label>
         <select id="selTarjetaJugador" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
       </div>
-
       <div>
         <label class="text-xs font-semibold text-gray-400 block mb-1">Tipo de Tarjeta:</label>
         <select id="selTipoTarjeta" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white">
@@ -327,7 +278,6 @@
           <option value="Roja">🟥 Tarjeta Roja Directa</option>
         </select>
       </div>
-
       <div class="flex gap-2 pt-2">
         <button onclick="cerrarModal('modalTarjeta')" class="flex-1 bg-gray-700 text-white py-2 rounded-lg text-xs font-bold">Cancelar</button>
         <button onclick="confirmarTarjeta()" class="flex-1 bg-amber-600 text-white py-2 rounded-lg text-xs font-bold">Registrar</button>
@@ -335,25 +285,20 @@
     </div>
   </div>
 
-  <!-- MODAL: NOTA RÁPIDA -->
   <div id="modalNota" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-3">
     <div class="bg-gray-800 w-full max-w-md rounded-2xl p-4 border border-gray-700 space-y-3">
       <h3 class="text-base font-bold text-gray-200">📝 Anotación Táctica</h3>
-      
       <div>
         <label class="text-xs font-semibold text-gray-400 block mb-1">Jugador implicado (Opcional):</label>
         <select id="selNotaJugador" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
       </div>
-
       <div class="flex flex-wrap gap-1.5">
         <button onclick="insertarChip('Buena presión')" class="bg-gray-700 hover:bg-gray-600 text-[11px] px-2 py-1 rounded-full text-gray-200">Buena presión</button>
         <button onclick="insertarChip('Falta táctica')" class="bg-gray-700 hover:bg-gray-600 text-[11px] px-2 py-1 rounded-full text-gray-200">Falta táctica</button>
         <button onclick="insertarChip('Marca en Córner')" class="bg-gray-700 hover:bg-gray-600 text-[11px] px-2 py-1 rounded-full text-gray-200">Marca en Córner</button>
         <button onclick="insertarChip('Tiro al palo')" class="bg-gray-700 hover:bg-gray-600 text-[11px] px-2 py-1 rounded-full text-gray-200">Tiro al palo</button>
       </div>
-
       <textarea id="txtNota" rows="3" placeholder="Escribe aquí tu observación..." class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-green-500"></textarea>
-
       <div class="flex gap-2 pt-2">
         <button onclick="cerrarModal('modalNota')" class="flex-1 bg-gray-700 text-white py-2 rounded-lg text-xs font-bold">Cancelar</button>
         <button onclick="confirmarNota()" class="flex-1 bg-green-600 text-white py-2 rounded-lg text-xs font-bold">Añadir Nota</button>
@@ -361,11 +306,34 @@
     </div>
   </div>
 
-  <!-- CÓDIGO Y LÓGICA DE LA APLICACIÓN -->
   <script>
+    if (sessionStorage.getItem('futbol_acceso_ok') === '1') {
+      document.getElementById('pantallaAcceso').classList.add('hidden');
+      document.getElementById('appContenido').classList.remove('hidden');
+    }
+
+    // ==========================================
+    // 1. CONFIGURACIÓN DE FIREBASE (CON TUS CLAVES)
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyCZUBEq6Erjsuk_qa639uurqNRAL3CYU6c",
+      authDomain: "ayudante-mister.firebaseapp.com",
+      databaseURL: "https://ayudante-mister-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "ayudante-mister",
+      storageBucket: "ayudante-mister.firebasestorage.app",
+      messagingSenderId: "75687646590",
+      appId: "1:75687646590:web:64671c2ca2fb8ab53e0f2f",
+      measurementId: "G-TPY50CH9SQ"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ==========================================
+    // 2. CONSTANTES Y LOGIN
+    // ==========================================
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
-    // CONTROL DE ACCESO POR USUARIOS MULTIPLE
     const USUARIOS = {
       "1234": "Entrenador",
       "5678": "Segundo Entrenador",
@@ -383,11 +351,9 @@
 
     function comprobarAcceso() {
       const valor = document.getElementById('claveAcceso').value.trim();
-      
       if (USUARIOS[valor]) {
         sessionStorage.setItem('futbol_acceso_ok', '1');
         sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
-        
         actualizarNombreUsuarioHeader();
         document.getElementById('pantallaAcceso').classList.add('hidden');
         document.getElementById('appContenido').classList.remove('hidden');
@@ -407,70 +373,97 @@
       document.getElementById('pantallaAcceso').classList.remove('hidden');
     }
 
-    // PLANTILLA BASE PRE-CARGADA
     const plantillaInicial = [
-      { id: 1, dorsal: 1, nombre: "Jose Hdez" },
-      { id: 2, dorsal: 2, nombre: "Pablo S" },
-      { id: 3, dorsal: 3, nombre: "Ivan" },
-      { id: 4, dorsal: 4, nombre: "Pablo L" },
-      { id: 5, dorsal: 5, nombre: "Jose Barbecho" },
-      { id: 6, dorsal: 6, nombre: "Roberto" },
-      { id: 7, dorsal: 7, nombre: "Marcos Adell" },
-      { id: 8, dorsal: 8, nombre: "Héctor" },
-      { id: 9, dorsal: 9, nombre: "Miguel" },
-      { id: 10, dorsal: 10, nombre: "Javi Bueno" },
-      { id: 12, dorsal: 12, nombre: "Samuel" },
-      { id: 13, dorsal: 13, nombre: "Javi Conde" },
-      { id: 14, dorsal: 14, nombre: "Dani" },
-      { id: 15, dorsal: 15, nombre: "Alejandro" },
-      { id: 16, dorsal: 16, nombre: "David Gualberto" },
-      { id: 17, dorsal: 17, nombre: "Luis" },
-      { id: 19, dorsal: 19, nombre: "Marcos Barrera" },
-      { id: 20, dorsal: 20, nombre: "Alvaro Brachi" },
-      { id: 21, dorsal: 21, nombre: "Marcos Dominguez" },
-      { id: 22, dorsal: 22, nombre: "Oscar" },
-      { id: 23, dorsal: 23, nombre: "Javier Perez" },
-      { id: 24, dorsal: 24, nombre: "Carlos Cousinou" },
-      { id: 28, dorsal: 28, nombre: "Andrés Murillo" },
-      { id: 30, dorsal: 30, nombre: "Jorge Ramos" }
+      { id: 1, dorsal: 1, nombre: "Jose Hdez" }, { id: 2, dorsal: 2, nombre: "Pablo S" },
+      { id: 3, dorsal: 3, nombre: "Ivan" }, { id: 4, dorsal: 4, nombre: "Pablo L" },
+      { id: 5, dorsal: 5, nombre: "Jose Barbecho" }, { id: 6, dorsal: 6, nombre: "Roberto" },
+      { id: 7, dorsal: 7, nombre: "Marcos Adell" }, { id: 8, dorsal: 8, nombre: "Héctor" },
+      { id: 9, dorsal: 9, nombre: "Miguel" }, { id: 10, dorsal: 10, nombre: "Javi Bueno" },
+      { id: 12, dorsal: 12, nombre: "Samuel" }, { id: 13, dorsal: 13, nombre: "Javi Conde" },
+      { id: 14, dorsal: 14, nombre: "Dani" }, { id: 15, dorsal: 15, nombre: "Alejandro" },
+      { id: 16, dorsal: 16, nombre: "David Gualberto" }, { id: 17, dorsal: 17, nombre: "Luis" },
+      { id: 19, dorsal: 19, nombre: "Marcos Barrera" }, { id: 20, dorsal: 20, nombre: "Alvaro Brachi" },
+      { id: 21, dorsal: 21, nombre: "Marcos Dominguez" }, { id: 22, dorsal: 22, nombre: "Oscar" },
+      { id: 23, dorsal: 23, nombre: "Javier Perez" }, { id: 24, dorsal: 24, nombre: "Carlos Cousinou" },
+      { id: 28, dorsal: 28, nombre: "Andrés Murillo" }, { id: 30, dorsal: 30, nombre: "Jorge Ramos" }
     ];
 
-    // ESTADO DE LA APLICACIÓN
-    let plantilla = JSON.parse(localStorage.getItem('futbol_plantilla')) || plantillaInicial;
-    let partidoActual = JSON.parse(localStorage.getItem('futbol_partido_activo')) || crearEstadoPartido();
-    let historialPartidos = JSON.parse(localStorage.getItem('futbol_historial')) || [];
-
+    let plantilla = [];
+    let partidoActual = crearEstadoPartido();
+    let historialPartidos = [];
     let timerInterval = null;
 
     function crearEstadoPartido() {
       return {
-        rival: '',
-        fecha: new Date().toISOString().split('T')[0],
-        condicion: 'Local',
-        golesFavor: 0,
-        golesRival: 0,
-        segundos: 0,
-        corriendo: false,
-        periodo: '1ª Parte',
-        convocados: [], 
-        titulares: [], 
-        enCampo: [],    
-        eventos: [],    
-        tiemposJugadores: {} 
+        rival: '', fecha: new Date().toISOString().split('T')[0], condicion: 'Local',
+        golesFavor: 0, golesRival: 0, segundos: 0, corriendo: false, periodo: '1ª Parte',
+        convocados: [], titulares: [], enCampo: [], eventos: [], tiemposJugadores: {} 
       };
     }
 
+    // ==========================================
+    // 3. ESCUCHADORES EN TIEMPO REAL (NUBE)
+    // ==========================================
     window.onload = function() {
       actualizarNombreUsuarioHeader();
-      guardarPlantilla();
-      renderizarPlantilla();
-      renderizarPartidoActual();
-      renderizarHistorial();
-      cargarSelectorJugadoresFicha();
-      if(partidoActual.corriendo) iniciarTimerLoop();
+
+      // Escuchar Cambios en la Plantilla
+      db.ref('plantilla').on('value', snapshot => {
+        const val = snapshot.val();
+        if (val) {
+          plantilla = val;
+        } else {
+          plantilla = plantillaInicial;
+          guardarPlantilla();
+        }
+        renderizarPlantilla();
+        cargarSelectorJugadoresFicha();
+      });
+
+      // Escuchar Cambios en Partido Activo
+      db.ref('partidoActual').on('value', snapshot => {
+        const val = snapshot.val();
+        if (val) {
+          partidoActual = {
+            ...val,
+            convocados: val.convocados || [],
+            titulares: val.titulares || [],
+            enCampo: val.enCampo || [],
+            eventos: val.eventos || [],
+            tiemposJugadores: val.tiemposJugadores || {}
+          };
+        } else {
+          partidoActual = crearEstadoPartido();
+        }
+        
+        renderizarPartidoActual();
+
+        if(partidoActual.corriendo) {
+          if (!timerInterval) iniciarTimerLoop();
+          document.getElementById('btnTimer').innerText = '⏸️ Pausar Tiempo';
+          document.getElementById('btnTimer').className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+        } else {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          document.getElementById('btnTimer').innerText = '▶️ Iniciar Tiempo';
+          document.getElementById('btnTimer').className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+        }
+      });
+
+      // Escuchar Cambios en Historial
+      db.ref('historialPartidos').on('value', snapshot => {
+        const val = snapshot.val();
+        historialPartidos = val ? Object.values(val) : [];
+        renderizarHistorial();
+        renderizarMinutos();
+      });
     };
 
-    // CONTROL DEL NAVEGADOR Y PESTAÑAS
+    function guardarEstadoPartido() { db.ref('partidoActual').set(partidoActual); }
+    function guardarPlantilla() { db.ref('plantilla').set(plantilla); }
+    function guardarHistorial() { db.ref('historialPartidos').set(historialPartidos); }
+
+    // NAVEGACIÓN
     function cambiarPestana(pestana) {
       document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
       document.getElementById(`sec-${pestana}`).classList.remove('hidden');
@@ -491,19 +484,9 @@
       }
     }
 
-    // CRONÓMETRO Y TIEMPO
+    // RELOJ
     function toggleTimer() {
-      if(partidoActual.corriendo) {
-        clearInterval(timerInterval);
-        partidoActual.corriendo = false;
-        document.getElementById('btnTimer').innerText = '▶️ Reanudar Tiempo';
-        document.getElementById('btnTimer').className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-      } else {
-        partidoActual.corriendo = true;
-        iniciarTimerLoop();
-        document.getElementById('btnTimer').innerText = '⏸️ Pausar Tiempo';
-        document.getElementById('btnTimer').className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-      }
+      partidoActual.corriendo = !partidoActual.corriendo;
       guardarEstadoPartido();
     }
 
@@ -534,7 +517,7 @@
       guardarEstadoPartido();
     }
 
-    // CONFIGURACIÓN PRE-PARTIDO
+    // CONVOCATORIA Y ACCIONES
     function prepararPartidoModal() {
       document.getElementById('cfgRival').value = partidoActual.rival;
       document.getElementById('cfgFecha').value = partidoActual.fecha;
@@ -620,11 +603,10 @@
       });
 
       cerrarModal('modalConvocatoria');
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
-    // MODAL DE GOLES
+    // EVENTOS DEL PARTIDO
     function abrirModalGol() {
       llenarSelectJugadores('selGoleador', partidoActual.enCampo);
       llenarSelectJugadores('selAsistente', partidoActual.enCampo, true);
@@ -636,10 +618,7 @@
       let golId = parseInt(document.getElementById('selGoleador').value);
       let asistId = parseInt(document.getElementById('selAsistente').value);
 
-      if(!golId) {
-        alert("Selecciona al menos al autor del gol.");
-        return;
-      }
+      if(!golId) { alert("Selecciona al menos al autor del gol."); return; }
 
       let goleador = plantilla.find(j => j.id === golId);
       let asistente = plantilla.find(j => j.id === asistId);
@@ -647,40 +626,26 @@
       partidoActual.golesFavor++;
 
       let evento = {
-        id: Date.now(),
-        tipo: 'GOL',
-        minuto: min,
-        periodo: partidoActual.periodo,
-        jugadorId: golId,
-        asistenteId: asistId || null,
+        id: Date.now(), tipo: 'GOL', minuto: min, periodo: partidoActual.periodo, jugadorId: golId, asistenteId: asistId || null,
         texto: `<b>¡GOL!</b> #${goleador ? goleador.dorsal : ''} ${goleador ? goleador.nombre : ''}` + (asistente ? ` (Asistencia: #${asistente.dorsal} ${asistente.nombre})` : '')
       };
 
       partidoActual.eventos.unshift(evento);
       cerrarModal('modalGol');
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
     function registrarGolRival() {
       let min = Math.floor(partidoActual.segundos / 60) || 1;
-
       partidoActual.golesRival++;
-
       let evento = {
-        id: Date.now(),
-        tipo: 'GOL_RIVAL',
-        minuto: min,
-        periodo: partidoActual.periodo,
+        id: Date.now(), tipo: 'GOL_RIVAL', minuto: min, periodo: partidoActual.periodo,
         texto: `Gol del ${partidoActual.rival || 'equipo rival'}`
       };
-
       partidoActual.eventos.unshift(evento);
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
-    // MODAL DE SUSTITUCIONES
     function abrirModalSustitucion() {
       llenarSelectJugadores('selSale', partidoActual.enCampo);
       let banquillo = partidoActual.convocados.filter(id => !partidoActual.enCampo.includes(id));
@@ -693,10 +658,7 @@
       let saleId = parseInt(document.getElementById('selSale').value);
       let entraId = parseInt(document.getElementById('selEntra').value);
 
-      if(!saleId || !entraId) {
-        alert("Selecciona ambos jugadores para realizar el cambio.");
-        return;
-      }
+      if(!saleId || !entraId) { alert("Selecciona ambos jugadores para realizar el cambio."); return; }
 
       let sale = plantilla.find(j => j.id === saleId);
       let entra = plantilla.find(j => j.id === entraId);
@@ -705,20 +667,15 @@
       partidoActual.enCampo.push(entraId);
 
       let evento = {
-        id: Date.now(),
-        tipo: 'CAMBIO',
-        minuto: min,
-        periodo: partidoActual.periodo,
+        id: Date.now(), tipo: 'CAMBIO', minuto: min, periodo: partidoActual.periodo,
         texto: `<b>Sustitución:</b> Entra #${entra.dorsal} ${entra.nombre} 🟢 / Sale #${sale.dorsal} ${sale.nombre} 🔴`
       };
 
       partidoActual.eventos.unshift(evento);
       cerrarModal('modalSustitucion');
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
-    // TARJETAS
     function abrirModalTarjeta() {
       llenarSelectJugadores('selTarjetaJugador', partidoActual.convocados);
       document.getElementById('modalTarjeta').classList.remove('hidden');
@@ -731,22 +688,15 @@
       let jug = plantilla.find(j => j.id === jugId);
 
       let evento = {
-        id: Date.now(),
-        tipo: 'TARJETA',
-        subtipo: tipo,
-        minuto: min,
-        periodo: partidoActual.periodo,
-        jugadorId: jugId,
+        id: Date.now(), tipo: 'TARJETA', subtipo: tipo, minuto: min, periodo: partidoActual.periodo, jugadorId: jugId,
         texto: `<b>Tarjeta ${tipo}:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
       };
 
       partidoActual.eventos.unshift(evento);
       cerrarModal('modalTarjeta');
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
-    // NOTAS RÁPIDAS
     function abrirModalNota() {
       document.getElementById('txtNota').value = '';
       llenarSelectJugadores('selNotaJugador', partidoActual.convocados, true);
@@ -769,20 +719,15 @@
       let cabeceraJugador = jug ? `[#${jug.dorsal} ${jug.nombre}] ` : '';
 
       let evento = {
-        id: Date.now(),
-        tipo: 'NOTA',
-        minuto: min,
-        periodo: partidoActual.periodo,
+        id: Date.now(), tipo: 'NOTA', minuto: min, periodo: partidoActual.periodo,
         texto: `<b>Anotación:</b> ${cabeceraJugador}${nota}`
       };
 
       partidoActual.eventos.unshift(evento);
       cerrarModal('modalNota');
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
-    // AUXILIARES UI
     function llenarSelectJugadores(elementId, listaIds, opcionVacia = false) {
       let sel = document.getElementById(elementId);
       sel.innerHTML = '';
@@ -790,26 +735,18 @@
 
       listaIds.forEach(id => {
         let j = plantilla.find(x => x.id === id);
-        if(j) {
-          sel.innerHTML += `<option value="${j.id}">#${j.dorsal} - ${j.nombre}</option>`;
-        }
+        if(j) sel.innerHTML += `<option value="${j.id}">#${j.dorsal} - ${j.nombre}</option>`;
       });
     }
 
-    function cerrarModal(id) {
-      document.getElementById(id).classList.add('hidden');
-    }
+    function cerrarModal(id) { document.getElementById(id).classList.add('hidden'); }
 
     function renderizarPartidoActual() {
       let esLocal = partidoActual.condicion === 'Local';
       let rivalNombre = partidoActual.rival || 'Rival';
 
-      let cabeceraOrdenada = esLocal 
-        ? `${NOMBRE_MI_EQUIPO} vs ${rivalNombre}` 
-        : `${rivalNombre} vs ${NOMBRE_MI_EQUIPO}`;
-
-      let info = partidoActual.rival ? cabeceraOrdenada : 'Sin rival configurado';
-      document.getElementById('matchHeaderInfo').innerText = info;
+      let cabeceraOrdenada = esLocal ? `${NOMBRE_MI_EQUIPO} vs ${rivalNombre}` : `${rivalNombre} vs ${NOMBRE_MI_EQUIPO}`;
+      document.getElementById('matchHeaderInfo').innerText = partidoActual.rival ? cabeceraOrdenada : 'Sin rival configurado';
 
       if (esLocal) {
         document.getElementById('marcadorIzquierdaNombre').innerText = NOMBRE_MI_EQUIPO;
@@ -826,7 +763,7 @@
       let feed = document.getElementById('feedEventos');
       feed.innerHTML = '';
 
-      if(partidoActual.eventos.length === 0) {
+      if(!partidoActual.eventos || partidoActual.eventos.length === 0) {
         feed.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">Sin sucesos registrados en este partido.</div>`;
         return;
       }
@@ -854,14 +791,12 @@
 
     function eliminarEvento(id) {
       partidoActual.eventos = partidoActual.eventos.filter(e => e.id !== id);
-      renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
-    // RENDERIZAR PESTAÑA MINUTOS
+    // MINUTOS E HISTORIALES
     function renderizarMinutos() {
       let filtro = (document.getElementById('filtroJugadorMinutos').value || '').toLowerCase();
-      
       let contActual = document.getElementById('listaMinutosJugadores');
       contActual.innerHTML = '';
 
@@ -896,9 +831,7 @@
           contActual.appendChild(div);
         });
 
-        if(visiblesActual === 0 && filtro) {
-          contActual.innerHTML = `<div class="text-center text-gray-500 text-xs py-2">Sin coincidencias en el partido actual.</div>`;
-        }
+        if(visiblesActual === 0 && filtro) contActual.innerHTML = `<div class="text-center text-gray-500 text-xs py-2">Sin coincidencias en el partido actual.</div>`;
       }
 
       let contHistorial = document.getElementById('listaHistorialMinutos');
@@ -945,12 +878,8 @@
             <span class="text-green-400 font-semibold text-xs">${p.fecha}</span>
           </div>
           <div class="absolute top-2 right-2 flex items-center gap-1">
-            <button onclick="copiarMinutosPartidoWhatsApp(${p.id})" class="text-xs bg-gray-700 hover:bg-gray-600 text-green-400 px-1.5 py-0.5 rounded" title="Copiar minutos para WhatsApp">
-              📲
-            </button>
-            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-gray-500 hover:text-red-400 p-1 text-xs" title="Borrar este partido">
-              🗑️
-            </button>
+            <button onclick="copiarMinutosPartidoWhatsApp(${p.id})" class="text-xs bg-gray-700 hover:bg-gray-600 text-green-400 px-1.5 py-0.5 rounded">📲</button>
+            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-gray-500 hover:text-red-400 p-1 text-xs">🗑️</button>
           </div>
           <div class="pt-1 space-y-1">
             ${filasJugadoresHTML || '<div class="text-gray-500 italic text-xs">Sin minutos registrados</div>'}
@@ -958,17 +887,10 @@
         `;
         contHistorial.appendChild(card);
       });
-
-      if(contHistorial.children.length === 0 && filtro) {
-        contHistorial.innerHTML = `<div class="text-center text-gray-500 text-xs py-3">No se encontraron partidos con ese jugador.</div>`;
-      }
     }
 
-    function filtrarMinutos() {
-      renderizarMinutos();
-    }
+    function filtrarMinutos() { renderizarMinutos(); }
 
-    // FICHA DETALLADA DEL JUGADOR
     function cargarSelectorJugadoresFicha() {
       let sel = document.getElementById('selBuscarJugadorFicha');
       let actual = sel.value;
@@ -1008,14 +930,7 @@
       }
       todosLosPartidos = todosLosPartidos.concat(historialPartidos);
 
-      let convocatorias = 0;
-      let titularidades = 0;
-      let minutosTotales = 0;
-      let goles = 0;
-      let asistencias = 0;
-      let amarillas = 0;
-      let rojas = 0;
-
+      let convocatorias = 0, titularidades = 0, minutosTotales = 0, goles = 0, asistencias = 0, amarillas = 0, rojas = 0;
       let desglosePartidosHTML = '';
 
       todosLosPartidos.forEach(p => {
@@ -1023,16 +938,12 @@
         if(!esConv) return;
 
         convocatorias++;
-        let esTit = p.titulares && p.titulares.includes(jugId);
-        if(esTit) titularidades++;
+        if(p.titulares && p.titulares.includes(jugId)) titularidades++;
 
         let mins = (p.tiemposJugadores && p.tiemposJugadores[jugId]) || 0;
         minutosTotales += mins;
 
-        let golesP = 0;
-        let asistP = 0;
-        let amarillasP = 0;
-        let rojasP = 0;
+        let golesP = 0, asistP = 0, amarillasP = 0, rojasP = 0;
 
         if(p.eventos) {
           p.eventos.forEach(ev => {
@@ -1047,27 +958,17 @@
 
         let esLoc = p.condicion === 'Local';
         let rivalNom = p.rival || 'Rival';
-        let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
-        let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
 
         desglosePartidosHTML += `
           <div class="bg-gray-800 p-2.5 rounded-lg border border-gray-700 text-xs flex justify-between items-center">
             <div>
               <div class="font-bold text-white flex items-center gap-1">
-                ${parteIzquierda} vs ${parteDerecha}
+                ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}
                 ${p.esDirecto ? '<span class="text-[9px] bg-green-900 text-green-300 px-1 rounded">EN DIRECTO</span>' : ''}
               </div>
-              <div class="text-[11px] text-gray-400">${p.fecha} • ${esTit ? ' Titular' : ' Banquillo'}</div>
-              <div class="flex gap-2 text-[11px] mt-0.5">
-                ${golesP > 0 ? `<span class="text-blue-400">⚽ ${golesP}</span>` : ''}
-                ${asistP > 0 ? `<span class="text-purple-400">🎯 ${asistP}</span>` : ''}
-                ${amarillasP > 0 ? `<span class="text-amber-400">🟨 ${amarillasP}</span>` : ''}
-                ${rojasP > 0 ? `<span class="text-red-400">🟥 ${rojasP}</span>` : ''}
-              </div>
+              <div class="text-[11px] text-gray-400">${p.fecha} • ${p.titulares && p.titulares.includes(jugId) ? 'Titular' : 'Banquillo'}</div>
             </div>
-            <div class="text-right font-mono font-bold text-green-400 text-sm">
-              ${mins} min
-            </div>
+            <div class="text-right font-mono font-bold text-green-400 text-sm">${mins} min</div>
           </div>
         `;
       });
@@ -1105,22 +1006,12 @@
 
         <div class="pt-2">
           <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Desglose por Partido</h4>
-          <div class="space-y-2">
-            ${desglosePartidosHTML || '<div class="text-center text-gray-500 text-xs py-4 bg-gray-800/40 rounded-lg">El jugador no registra minutos ni convocatorias aún.</div>'}
-          </div>
+          <div class="space-y-2">${desglosePartidosHTML || '<div class="text-center text-gray-500 text-xs py-4 bg-gray-800/40 rounded-lg">Sin datos registrados.</div>'}</div>
         </div>
       `;
     }
 
-    // PERSISTENCIA Y GUARDADO
-    function guardarEstadoPartido() {
-      localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
-    }
-
-    function guardarPlantilla() {
-      localStorage.setItem('futbol_plantilla', JSON.stringify(plantilla));
-    }
-
+    // PLANTILLA
     function renderizarPlantilla() {
       let cont = document.getElementById('listaPlantilla');
       cont.innerHTML = '';
@@ -1141,42 +1032,24 @@
       let dor = prompt("Dorsal:");
       plantilla.push({ id: Date.now(), dorsal: parseInt(dor) || 0, nombre: nom });
       guardarPlantilla();
-      renderizarPlantilla();
-      cargarSelectorJugadoresFicha();
     }
 
     function borrarJugador(id) {
       plantilla = plantilla.filter(j => j.id !== id);
       guardarPlantilla();
-      renderizarPlantilla();
-      cargarSelectorJugadoresFicha();
     }
 
-    // FINALIZAR Y HISTORIAL
+    // FINALIZAR
     function finalizarPartido() {
       if(!confirm("¿Deseas dar por finalizado este partido y guardarlo en el historial?")) return;
 
-      // Detener el cronómetro si estaba corriendo
       clearInterval(timerInterval);
-
       historialPartidos.unshift({...partidoActual, id: Date.now()});
-      localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
+      guardarHistorial();
 
-      // Resetear el objeto de partido
       partidoActual = crearEstadoPartido();
       guardarEstadoPartido();
 
-      // Resetear el botón e interfaz del cronómetro
-      const btnTimer = document.getElementById('btnTimer');
-      if (btnTimer) {
-        btnTimer.innerText = '▶️ Iniciar Tiempo';
-        btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-      }
-      document.getElementById('periodoTag').innerText = '1ª Parte';
-
-      renderizarPartidoActual();
-      renderizarHistorial();
-      renderizarMinutos();
       cambiarPestana('historial');
     }
 
@@ -1199,15 +1072,11 @@
         
         let esLoc = p.condicion === 'Local';
         let rivalNom = p.rival || 'Rival';
-
         let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
         let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
 
-        let marcadorOrdenado = esLoc 
-          ? `${p.golesFavor} - ${p.golesRival}` 
-          : `${p.golesRival} - ${p.golesFavor}`;
-
-        let listaEventos = p.eventos.map(ev => `<li class="text-[11px] text-gray-400">• [Min ${ev.minuto}'] ${ev.texto}</li>`).join('');
+        let marcadorOrdenado = esLoc ? `${p.golesFavor} - ${p.golesRival}` : `${p.golesRival} - ${p.golesFavor}`;
+        let listaEventos = (p.eventos || []).map(ev => `<li class="text-[11px] text-gray-400">• [Min ${ev.minuto}'] ${ev.texto}</li>`).join('');
 
         div.innerHTML = `
           <div class="flex justify-between items-center border-b border-gray-700 pb-1.5 pr-14">
@@ -1215,12 +1084,8 @@
             <span class="text-green-400 font-semibold">${p.fecha}</span>
           </div>
           <div class="absolute top-2 right-2 flex items-center gap-1">
-            <button onclick="copiarReportePartidoHistorialWhatsApp(${p.id})" class="text-xs bg-gray-700 hover:bg-gray-600 text-green-400 px-1.5 py-0.5 rounded" title="Copiar informe para WhatsApp">
-              📲
-            </button>
-            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-gray-500 hover:text-red-400 p-1 text-xs" title="Borrar este partido">
-              🗑️
-            </button>
+            <button onclick="copiarReportePartidoHistorialWhatsApp(${p.id})" class="text-xs bg-gray-700 hover:bg-gray-600 text-green-400 px-1.5 py-0.5 rounded">📲</button>
+            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-gray-500 hover:text-red-400 p-1 text-xs">🗑️</button>
           </div>
           <div class="flex justify-between items-center text-sm font-bold text-white bg-gray-900/50 p-2 rounded">
             <span>Resultado Final:</span>
@@ -1228,9 +1093,7 @@
           </div>
           <div class="pt-1">
             <span class="text-gray-400 font-semibold block mb-1">Eventos del partido:</span>
-            <ul class="space-y-1 pl-1 max-h-36 overflow-y-auto">
-              ${listaEventos || '<li class="text-gray-500 italic">Sin eventos registrados</li>'}
-            </ul>
+            <ul class="space-y-1 pl-1 max-h-36 overflow-y-auto">${listaEventos || '<li class="text-gray-500 italic">Sin eventos registrados</li>'}</ul>
           </div>
         `;
         cont.appendChild(div);
@@ -1239,65 +1102,37 @@
 
     function eliminarPartidoHistorial(idPartido) {
       if(!confirm("¿Estás seguro de que quieres borrar este partido del historial?")) return;
-      
       historialPartidos = historialPartidos.filter(p => p.id !== idPartido);
-      localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
-      renderizarHistorial();
-      renderizarMinutos();
+      guardarHistorial();
     }
 
     function vaciarTodoElHistorial() {
-      if(!confirm("¿⚠️ ATENCIÓN: Quieres borrar TODOS los partidos del historial? Esta acción no se puede deshacer.")) return;
-      
+      if(!confirm("¿⚠️ ATENCIÓN: Quieres borrar TODOS los partidos del historial?")) return;
       historialPartidos = [];
-      localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
-      renderizarHistorial();
-      renderizarMinutos();
+      guardarHistorial();
     }
 
-    // EXPORTACIÓN A WHATSAPP
+    // WHATSAPP
     function copiarReporteWhatsApp() {
       let esLoc = partidoActual.condicion === 'Local';
       let rivalNom = partidoActual.rival || 'Por definir';
+      let marcadorOrdenado = esLoc ? `${partidoActual.golesFavor} - ${partidoActual.golesRival}` : `${partidoActual.golesRival} - ${partidoActual.golesFavor}`;
 
-      let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
-      let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
+      let txt = `📋 *INFORME DE PARTIDO*\n🆚 *Partido:* ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}\n📅 *Fecha:* ${partidoActual.fecha}\n⚽ *Resultado:* ${marcadorOrdenado}\n\n⏱️ *CRONOLOGÍA:*\n`;
 
-      let marcadorOrdenado = esLoc 
-        ? `${partidoActual.golesFavor} - ${partidoActual.golesRival}` 
-        : `${partidoActual.golesRival} - ${partidoActual.golesFavor}`;
-
-      let txt = `📋 *INFORME DE PARTIDO*\n`;
-      txt += `🆚 *Partido:* ${parteIzquierda} vs ${parteDerecha} (${partidoActual.condicion})\n`;
-      txt += `📅 *Fecha:* ${partidoActual.fecha}\n`;
-      txt += `⚽ *Resultado:* ${marcadorOrdenado}\n\n`;
-      txt += `⏱️ *CRONOLOGÍA:*\n`;
-
-      if(partidoActual.eventos.length === 0) {
+      if(!partidoActual.eventos || partidoActual.eventos.length === 0) {
         txt += `Sin eventos registrados.\n`;
       } else {
         partidoActual.eventos.slice().reverse().forEach(ev => {
           txt += `• [Min ${ev.minuto}'] ${ev.texto.replace(/<[^>]*>/g, '')}\n`;
         });
       }
-
       copiarAlPortapapeles(txt);
     }
 
     function copiarMinutosPartidoActualWhatsApp() {
-      if(partidoActual.convocados.length === 0) {
-        alert("No hay jugadores convocados en el partido activo.");
-        return;
-      }
-      
-      let esLoc = partidoActual.condicion === 'Local';
-      let rivalNom = partidoActual.rival || 'Por definir';
-      let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
-      let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
-
-      let txt = `⏱️ *MINUTOS JUGADOS (EN DIRECTO)*\n`;
-      txt += `🆚 *Partido:* ${parteIzquierda} vs ${parteDerecha}\n`;
-      txt += `📅 *Fecha:* ${partidoActual.fecha}\n\n`;
+      if(partidoActual.convocados.length === 0) { alert("No hay jugadores convocados."); return; }
+      let txt = `⏱️ *MINUTOS JUGADOS (EN DIRECTO)*\n📅 *Fecha:* ${partidoActual.fecha}\n\n`;
 
       partidoActual.convocados.forEach(id => {
         let j = plantilla.find(x => x.id === id);
@@ -1305,71 +1140,39 @@
         let estado = partidoActual.enCampo.includes(id) ? '🟢' : '⚪';
         txt += `${estado} #${j ? j.dorsal : ''} ${j ? j.nombre : 'Jugador'}: *${mins} min*\n`;
       });
-
       copiarAlPortapapeles(txt);
     }
 
     function copiarMinutosPartidoWhatsApp(idPartido) {
       let p = historialPartidos.find(x => x.id === idPartido);
       if(!p) return;
+      let txt = `⏱️ *REPORTE DE MINUTOS JUGADOS*\n📅 *Fecha:* ${p.fecha}\n\n`;
 
-      let esLoc = p.condicion === 'Local';
-      let rivalNom = p.rival || 'Rival';
-      let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
-      let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
-
-      let txt = `⏱️ *REPORTE DE MINUTOS JUGADOS*\n`;
-      txt += `🆚 *Partido:* ${parteIzquierda} vs ${parteDerecha} (${p.condicion})\n`;
-      txt += `📅 *Fecha:* ${p.fecha}\n\n`;
-
-      let convocadosList = p.convocados || [];
-      if(convocadosList.length === 0) {
-        txt += `Sin datos de minutos registrados.\n`;
-      } else {
-        convocadosList.forEach(id => {
-          let j = plantilla.find(x => x.id === id);
-          let mins = (p.tiemposJugadores && p.tiemposJugadores[id]) || 0;
-          txt += `• #${j ? j.dorsal : ''} ${j ? j.nombre : 'Jugador'}: *${mins} min*\n`;
-        });
-      }
-
+      (p.convocados || []).forEach(id => {
+        let j = plantilla.find(x => x.id === id);
+        let mins = (p.tiemposJugadores && p.tiemposJugadores[id]) || 0;
+        txt += `• #${j ? j.dorsal : ''} ${j ? j.nombre : 'Jugador'}: *${mins} min*\n`;
+      });
       copiarAlPortapapeles(txt);
     }
 
     function copiarReportePartidoHistorialWhatsApp(idPartido) {
       let p = historialPartidos.find(x => x.id === idPartido);
       if(!p) return;
-
       let esLoc = p.condicion === 'Local';
       let rivalNom = p.rival || 'Rival';
 
-      let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
-      let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
+      let txt = `📋 *INFORME DE PARTIDO PASADO*\n🆚 *Partido:* ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}\n📅 *Fecha:* ${p.fecha}\n⚽ *Resultado:* ${esLoc ? p.golesFavor : p.golesRival} - ${esLoc ? p.golesRival : p.golesFavor}\n\n⏱️ *CRONOLOGÍA:*\n`;
 
-      let marcadorOrdenado = esLoc 
-        ? `${p.golesFavor} - ${p.golesRival}` 
-        : `${p.golesRival} - ${p.golesFavor}`;
-
-      let txt = `📋 *INFORME DE PARTIDO PASADO*\n`;
-      txt += `🆚 *Partido:* ${parteIzquierda} vs ${parteDerecha} (${p.condicion})\n`;
-      txt += `📅 *Fecha:* ${p.fecha}\n`;
-      txt += `⚽ *Resultado Final:* ${marcadorOrdenado}\n\n`;
-      txt += `⏱️ *CRONOLOGÍA:*\n`;
-
-      if(!p.eventos || p.eventos.length === 0) {
-        txt += `Sin eventos registrados.\n`;
-      } else {
-        p.eventos.slice().reverse().forEach(ev => {
-          txt += `• [Min ${ev.minuto}'] ${ev.texto.replace(/<[^>]*>/g, '')}\n`;
-        });
-      }
-
+      (p.eventos || []).slice().reverse().forEach(ev => {
+        txt += `• [Min ${ev.minuto}'] ${ev.texto.replace(/<[^>]*>/g, '')}\n`;
+      });
       copiarAlPortapapeles(txt);
     }
 
     function copiarAlPortapapeles(texto) {
       navigator.clipboard.writeText(texto).then(() => {
-        alert("¡Copiado al portapapeles! Ya puedes pegarlo en WhatsApp.");
+        alert("¡Copiado al portapapeles!");
       }).catch(() => {
         alert("No se pudo copiar automáticamente.");
       });
