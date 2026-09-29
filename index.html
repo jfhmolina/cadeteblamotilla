@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ayudante Míster - La Motilla B</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- INTEGRACIÓN DE FIREBASE DATABASE -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     /* Estilos personalizados para optimizar en móviles */
     body { -webkit-tap-highlight-color: transparent; }
@@ -361,8 +364,17 @@
     </div>
   </div>
 
-  <!-- CÓDIGO Y LÓGICA DE LA APLICACIÓN -->
+  <!-- CÓDIGO Y LÓGICA DE LA APLICACIÓN CON FIREBASE EN TIEMPO REAL -->
   <script>
+    // ----------------------------------------------------
+    // CONFIGURACIÓN E INICIALIZACIÓN DE FIREBASE DATABASE
+    // ----------------------------------------------------
+    const firebaseConfig = {
+      databaseURL: "https://la-motilla-cadete-b-c70c1-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
     // CONTROL DE ACCESO POR USUARIOS MULTIPLE
@@ -462,13 +474,56 @@
 
     window.onload = function() {
       actualizarNombreUsuarioHeader();
-      guardarPlantilla();
-      renderizarPlantilla();
-      renderizarPartidoActual();
-      renderizarHistorial();
-      cargarSelectorJugadoresFicha();
-      if(partidoActual.corriendo) iniciarTimerLoop();
+
+      // Sincronización en Tiempo Real mediante Firebase
+      db.ref().on('value', snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          if (data.plantilla) plantilla = data.plantilla;
+          if (data.partidoActual) {
+            partidoActual = data.partidoActual;
+            // Asegurar compatibilidad de arreglos
+            partidoActual.convocados = partidoActual.convocados || [];
+            partidoActual.titulares = partidoActual.titulares || [];
+            partidoActual.enCampo = partidoActual.enCampo || [];
+            partidoActual.eventos = partidoActual.eventos || [];
+            partidoActual.tiemposJugadores = partidoActual.tiemposJugadores || {};
+          }
+          if (data.historialPartidos) historialPartidos = data.historialPartidos;
+        } else {
+          // Si la base de datos está vacía, sincronizamos los datos iniciales
+          sincronizarTodoFirebase();
+        }
+
+        renderizarPlantilla();
+        renderizarPartidoActual();
+        renderizarHistorial();
+        cargarSelectorJugadoresFicha();
+        
+        // Ajustar el botón del cronómetro dinámicamente según estado
+        const btnTimer = document.getElementById('btnTimer');
+        if (btnTimer) {
+          if (partidoActual.corriendo) {
+            btnTimer.innerText = '⏸️ Pausar Tiempo';
+            btnTimer.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+            if (!timerInterval) iniciarTimerLoop();
+          } else {
+            btnTimer.innerText = partidoActual.segundos > 0 ? '▶️ Reanudar Tiempo' : '▶️ Iniciar Tiempo';
+            btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+            clearInterval(timerInterval);
+            timerInterval = null;
+          }
+        }
+      });
     };
+
+    function sincronizarTodoFirebase() {
+      db.ref().set({
+        plantilla: plantilla,
+        partidoActual: partidoActual,
+        historialPartidos: historialPartidos
+      });
+    }
 
     // CONTROL DEL NAVEGADOR Y PESTAÑAS
     function cambiarPestana(pestana) {
@@ -495,6 +550,7 @@
     function toggleTimer() {
       if(partidoActual.corriendo) {
         clearInterval(timerInterval);
+        timerInterval = null;
         partidoActual.corriendo = false;
         document.getElementById('btnTimer').innerText = '▶️ Reanudar Tiempo';
         document.getElementById('btnTimer').className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
@@ -1112,13 +1168,15 @@
       `;
     }
 
-    // PERSISTENCIA Y GUARDADO
+    // PERSISTENCIA Y GUARDADO EN FIREBASE + LOCALSTORAGE
     function guardarEstadoPartido() {
       localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
+      db.ref('partidoActual').set(partidoActual);
     }
 
     function guardarPlantilla() {
       localStorage.setItem('futbol_plantilla', JSON.stringify(plantilla));
+      db.ref('plantilla').set(plantilla);
     }
 
     function renderizarPlantilla() {
@@ -1158,9 +1216,11 @@
 
       // Detener el cronómetro si estaba corriendo
       clearInterval(timerInterval);
+      timerInterval = null;
 
       historialPartidos.unshift({...partidoActual, id: Date.now()});
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
+      db.ref('historialPartidos').set(historialPartidos);
 
       // Resetear el objeto de partido
       partidoActual = crearEstadoPartido();
@@ -1207,7 +1267,7 @@
           ? `${p.golesFavor} - ${p.golesRival}` 
           : `${p.golesRival} - ${p.golesFavor}`;
 
-        let listaEventos = p.eventos.map(ev => `<li class="text-[11px] text-gray-400">• [Min ${ev.minuto}'] ${ev.texto}</li>`).join('');
+        let listaEventos = p.eventos ? p.eventos.map(ev => `<li class="text-[11px] text-gray-400">• [Min ${ev.minuto}'] ${ev.texto}</li>`).join('') : '';
 
         div.innerHTML = `
           <div class="flex justify-between items-center border-b border-gray-700 pb-1.5 pr-14">
@@ -1242,6 +1302,7 @@
       
       historialPartidos = historialPartidos.filter(p => p.id !== idPartido);
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
+      db.ref('historialPartidos').set(historialPartidos);
       renderizarHistorial();
       renderizarMinutos();
     }
@@ -1251,6 +1312,7 @@
       
       historialPartidos = [];
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
+      db.ref('historialPartidos').set(historialPartidos);
       renderizarHistorial();
       renderizarMinutos();
     }
