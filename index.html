@@ -90,7 +90,7 @@
 
       <!-- Convocatoria -->
       <button onclick="prepararPartidoModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm shadow flex items-center justify-center gap-1">
-        ⚙️️ Convocatoria y Datos
+        ⚙ Convocatoria y Datos
       </button>
 
       <!-- Panel de Control de Tiempo -->
@@ -185,6 +185,14 @@
 
     <!-- PESTAÑA: FICHA DETALLADA DE JUGADOR -->
     <section id="sec-fichaJugador" class="hidden space-y-4">
+      <!-- RESUMEN GLOBAL DEL EQUIPO -->
+      <div id="contenedorResumenEquipo" class="bg-gray-800 p-3 rounded-xl border border-gray-700 space-y-3">
+        <h2 class="text-sm font-bold text-green-400">🏆 Métricas del Equipo (Global)</h2>
+        <div id="metricasEquipoBody" class="grid grid-cols-3 gap-2 text-center text-xs">
+          <!-- Carga dinámica -->
+        </div>
+      </div>
+
       <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 space-y-3">
         <h2 class="text-sm font-bold text-green-400">🔍 Ficha Estadística de Jugador</h2>
         <div>
@@ -471,6 +479,7 @@
         golesFavor: 0,
         golesRival: 0,
         segundos: 0,
+        startTime: null,
         corriendo: false,
         periodo: '1ª Parte',
         convocados: [], 
@@ -491,7 +500,6 @@
           if (data.plantilla) plantilla = data.plantilla;
           if (data.partidoActual) {
             partidoActual = data.partidoActual;
-            // Asegurar compatibilidad de arreglos
             partidoActual.convocados = partidoActual.convocados || [];
             partidoActual.titulares = partidoActual.titulares || [];
             partidoActual.enCampo = partidoActual.enCampo || [];
@@ -500,7 +508,6 @@
           }
           if (data.historialPartidos) historialPartidos = data.historialPartidos;
         } else {
-          // Si la base de datos está vacía, sincronizamos los datos iniciales
           sincronizarTodoFirebase();
         }
 
@@ -508,8 +515,8 @@
         renderizarPartidoActual();
         renderizarHistorial();
         cargarSelectorJugadoresFicha();
+        renderizarMetricasEquipoGlobal();
         
-        // Ajustar el botón del cronómetro dinámicamente según estado
         const btnTimer = document.getElementById('btnTimer');
         if (btnTimer) {
           if (partidoActual.corriendo) {
@@ -517,7 +524,8 @@
             btnTimer.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
             if (!timerInterval) iniciarTimerLoop();
           } else {
-            btnTimer.innerText = partidoActual.segundos > 0 ? '▶️ Reanudar Tiempo' : '▶️ Iniciar Tiempo';
+            let segs = obtenerSegundosActuales();
+            btnTimer.innerText = segs > 0 ? '▶️ Reanudar Tiempo' : '▶️️ Iniciar Tiempo';
             btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
             clearInterval(timerInterval);
             timerInterval = null;
@@ -552,20 +560,34 @@
       if(pestana === 'fichaJugador') {
         cargarSelectorJugadoresFicha();
         mostrarEstadisticasJugador();
+        renderizarMetricasEquipoGlobal();
       }
     }
 
-    // CRONÓMETRO Y TIEMPO
+    // CÁLCULO DINÁMICO DE TIEMPO
+    function obtenerSegundosActuales() {
+      if (partidoActual.corriendo && partidoActual.startTime) {
+        let transcurridoMs = Date.now() - partidoActual.startTime;
+        return (partidoActual.segundos || 0) + Math.floor(transcurridoMs / 1000);
+      }
+      return partidoActual.segundos || 0;
+    }
+
     function toggleTimer() {
-      if(partidoActual.corriendo) {
+      if (partidoActual.corriendo) {
+        partidoActual.segundos = obtenerSegundosActuales();
+        partidoActual.corriendo = false;
+        partidoActual.startTime = null;
         clearInterval(timerInterval);
         timerInterval = null;
-        partidoActual.corriendo = false;
+
         document.getElementById('btnTimer').innerText = '▶️ Reanudar Tiempo';
         document.getElementById('btnTimer').className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
       } else {
         partidoActual.corriendo = true;
+        partidoActual.startTime = Date.now();
         iniciarTimerLoop();
+
         document.getElementById('btnTimer').innerText = '⏸️ Pausar Tiempo';
         document.getElementById('btnTimer').className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
       }
@@ -574,22 +596,29 @@
 
     function iniciarTimerLoop() {
       clearInterval(timerInterval);
+      let ultimoMinutoSincronizado = Math.floor(obtenerSegundosActuales() / 60);
+
       timerInterval = setInterval(() => {
-        partidoActual.segundos++;
+        let totalSegundos = obtenerSegundosActuales();
         actualizarRelojUI();
 
-        if(partidoActual.segundos % 60 === 0) {
+        let minutoActual = Math.floor(totalSegundos / 60);
+        if (minutoActual > ultimoMinutoSincronizado) {
+          let minsDiferencia = minutoActual - ultimoMinutoSincronizado;
+          ultimoMinutoSincronizado = minutoActual;
+
           partidoActual.enCampo.forEach(id => {
-            partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + 1;
+            partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + minsDiferencia;
           });
+          guardarEstadoPartido();
         }
-        guardarEstadoPartido();
       }, 1000);
     }
 
     function actualizarRelojUI() {
-      let m = String(Math.floor(partidoActual.segundos / 60)).padStart(2, '0');
-      let s = String(Math.floor(partidoActual.segundos % 60)).padStart(2, '0');
+      let totalSeg = obtenerSegundosActuales();
+      let m = String(Math.floor(totalSeg / 60)).padStart(2, '0');
+      let s = String(Math.floor(totalSeg % 60)).padStart(2, '0');
       document.getElementById('cronometro').innerText = `${m}:${s}`;
     }
 
@@ -698,7 +727,7 @@
     }
 
     function confirmarGol() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
       let golId = parseInt(document.getElementById('selGoleador').value);
       let asistId = parseInt(document.getElementById('selAsistente').value);
       let tipoGol = document.getElementById('selTipoGol').value;
@@ -735,7 +764,7 @@
     }
 
     function registrarGolRival() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
 
       partidoActual.golesRival++;
 
@@ -761,7 +790,7 @@
     }
 
     function confirmarSustitucion() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
       let saleId = parseInt(document.getElementById('selSale').value);
       let entraId = parseInt(document.getElementById('selEntra').value);
 
@@ -797,22 +826,51 @@
     }
 
     function confirmarTarjeta() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
       let jugId = parseInt(document.getElementById('selTarjetaJugador').value);
       let tipo = document.getElementById('selTipoTarjeta').value;
       let jug = plantilla.find(j => j.id === jugId);
 
-      let evento = {
-        id: Date.now(),
-        tipo: 'TARJETA',
-        subtipo: tipo,
-        minuto: min,
-        periodo: partidoActual.periodo,
-        jugadorId: jugId,
-        texto: `<b>Tarjeta ${tipo}:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
-      };
+      if(!jugId) {
+        alert("Selecciona un jugador.");
+        return;
+      }
 
-      partidoActual.eventos.unshift(evento);
+      let amarillasPrevias = partidoActual.eventos.filter(e => e.tipo === 'TARJETA' && e.jugadorId === jugId && e.subtipo === 'Amarilla').length;
+
+      if (tipo === 'Amarilla' && amarillasPrevias >= 1) {
+        alert(`⚠️ El jugador #${jug.dorsal} ${jug.nombre} ya tenía una tarjeta amarilla. ¡Se registra 2ª Amarilla y Expulsión (Roja)!`);
+        
+        let evento = {
+          id: Date.now(),
+          tipo: 'TARJETA',
+          subtipo: 'Roja',
+          minuto: min,
+          periodo: partidoActual.periodo,
+          jugadorId: jugId,
+          texto: `<b>2ª Amarilla / Roja 🟥:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
+        };
+
+        partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+        partidoActual.eventos.unshift(evento);
+      } else {
+        if (tipo === 'Roja') {
+          partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+        }
+
+        let evento = {
+          id: Date.now(),
+          tipo: 'TARJETA',
+          subtipo: tipo,
+          minuto: min,
+          periodo: partidoActual.periodo,
+          jugadorId: jugId,
+          texto: `<b>Tarjeta ${tipo}:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
+        };
+
+        partidoActual.eventos.unshift(evento);
+      }
+
       cerrarModal('modalTarjeta');
       renderizarPartidoActual();
       guardarEstadoPartido();
@@ -831,7 +889,7 @@
     }
 
     function confirmarNota() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
       let jugId = parseInt(document.getElementById('selNotaJugador').value);
       let jug = plantilla.find(j => j.id === jugId);
       let nota = document.getElementById('txtNota').value.trim();
@@ -1040,6 +1098,69 @@
       renderizarMinutos();
     }
 
+    // MÉTRICAS GLOBALES DEL EQUIPO
+    function renderizarMetricasEquipoGlobal() {
+      let cont = document.getElementById('metricasEquipoBody');
+      if (!cont) return;
+
+      let todosLosPartidos = [...historialPartidos];
+      if (partidoActual.convocados && partidoActual.convocados.length > 0) {
+        todosLosPartidos.push(partidoActual);
+      }
+
+      let statsGoles = {};
+      let statsAsist = {};
+      let statsMins = {};
+
+      plantilla.forEach(j => {
+        statsGoles[j.id] = 0;
+        statsAsist[j.id] = 0;
+        statsMins[j.id] = 0;
+      });
+
+      todosLosPartidos.forEach(p => {
+        if (p.tiemposJugadores) {
+          Object.keys(p.tiemposJugadores).forEach(id => {
+            if (statsMins[id] !== undefined) statsMins[id] += p.tiemposJugadores[id] || 0;
+          });
+        }
+        if (p.eventos) {
+          p.eventos.forEach(ev => {
+            if (ev.tipo === 'GOL') {
+              if (ev.jugadorId && statsGoles[ev.jugadorId] !== undefined) statsGoles[ev.jugadorId]++;
+              if (ev.asistenteId && statsAsist[ev.asistenteId] !== undefined) statsAsist[ev.asistenteId]++;
+            }
+          });
+        }
+      });
+
+      let topGoleadorId = Object.keys(statsGoles).reduce((a, b) => statsGoles[a] > statsGoles[b] ? a : b, Object.keys(statsGoles)[0]);
+      let topAsistenteId = Object.keys(statsAsist).reduce((a, b) => statsAsist[a] > statsAsist[b] ? a : b, Object.keys(statsAsist)[0]);
+      let topMinutosId = Object.keys(statsMins).reduce((a, b) => statsMins[a] > statsMins[b] ? a : b, Object.keys(statsMins)[0]);
+
+      let topGol = plantilla.find(j => j.id == topGoleadorId);
+      let topAsis = plantilla.find(j => j.id == topAsistenteId);
+      let topMin = plantilla.find(j => j.id == topMinutosId);
+
+      cont.innerHTML = `
+        <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-700">
+          <span class="text-[10px] text-gray-400 block font-bold">⚽ MÁX GOLEADOR</span>
+          <span class="text-xs font-bold text-blue-400 block truncate">${topGol && statsGoles[topGoleadorId] > 0 ? topGol.nombre : '-'}</span>
+          <span class="text-[11px] font-mono text-gray-300 font-bold">${topGol ? statsGoles[topGoleadorId] : 0} goles</span>
+        </div>
+        <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-700">
+          <span class="text-[10px] text-gray-400 block font-bold">🎯 MÁX ASISTENTE</span>
+          <span class="text-xs font-bold text-purple-400 block truncate">${topAsis && statsAsist[topAsistenteId] > 0 ? topAsis.nombre : '-'}</span>
+          <span class="text-[11px] font-mono text-gray-300 font-bold">${topAsis ? statsAsist[topAsistenteId] : 0} asist.</span>
+        </div>
+        <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-700">
+          <span class="text-[10px] text-gray-400 block font-bold">⏱️ MÁS MINUTOS</span>
+          <span class="text-xs font-bold text-green-400 block truncate">${topMin && statsMins[topMinutosId] > 0 ? topMin.nombre : '-'}</span>
+          <span class="text-[11px] font-mono text-gray-300 font-bold">${topMin ? statsMins[topMinutosId] : 0}'</span>
+        </div>
+      `;
+    }
+
     // FICHA DETALLADA DEL JUGADOR
     function cargarSelectorJugadoresFicha() {
       let sel = document.getElementById('selBuscarJugadorFicha');
@@ -1186,6 +1307,7 @@
 
     // PERSISTENCIA Y GUARDADO EN FIREBASE + LOCALSTORAGE
     function guardarEstadoPartido() {
+      partidoActual.segundos = obtenerSegundosActuales();
       localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
       db.ref('partidoActual').set(partidoActual);
     }
@@ -1230,19 +1352,20 @@
     function finalizarPartido() {
       if(!confirm("¿Deseas dar por finalizado este partido y guardarlo en el historial?")) return;
 
-      // Detener el cronómetro si estaba corriendo
       clearInterval(timerInterval);
       timerInterval = null;
+
+      partidoActual.segundos = obtenerSegundosActuales();
+      partidoActual.corriendo = false;
+      partidoActual.startTime = null;
 
       historialPartidos.unshift({...partidoActual, id: Date.now()});
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
       db.ref('historialPartidos').set(historialPartidos);
 
-      // Resetear el objeto de partido
       partidoActual = crearEstadoPartido();
       guardarEstadoPartido();
 
-      // Resetear el botón e interfaz del cronómetro
       const btnTimer = document.getElementById('btnTimer');
       if (btnTimer) {
         btnTimer.innerText = '▶️ Iniciar Tiempo';
@@ -1253,6 +1376,7 @@
       renderizarPartidoActual();
       renderizarHistorial();
       renderizarMinutos();
+      renderizarMetricasEquipoGlobal();
       cambiarPestana('historial');
     }
 
@@ -1321,6 +1445,7 @@
       db.ref('historialPartidos').set(historialPartidos);
       renderizarHistorial();
       renderizarMinutos();
+      renderizarMetricasEquipoGlobal();
     }
 
     function vaciarTodoElHistorial() {
@@ -1331,6 +1456,7 @@
       db.ref('historialPartidos').set(historialPartidos);
       renderizarHistorial();
       renderizarMinutos();
+      renderizarMetricasEquipoGlobal();
     }
 
     // EXPORTACIÓN A WHATSAPP
@@ -1349,7 +1475,7 @@
       txt += `🆚 *Partido:* ${parteIzquierda} vs ${parteDerecha} (${partidoActual.condicion})\n`;
       txt += `📅 *Fecha:* ${partidoActual.fecha}\n`;
       txt += `⚽ *Resultado:* ${marcadorOrdenado}\n\n`;
-      txt += `⏱️️ *CRONOLOGÍA:*\n`;
+      txt += `⏱ *CRONOLOGÍA:*\n`;
 
       if(partidoActual.eventos.length === 0) {
         txt += `Sin eventos registrados.\n`;
