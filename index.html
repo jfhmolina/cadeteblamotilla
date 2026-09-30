@@ -90,7 +90,7 @@
 
       <!-- Convocatoria -->
       <button onclick="prepararPartidoModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm shadow flex items-center justify-center gap-1">
-        ⚙️ Convocatoria y Datos
+        ⚙️️ Convocatoria y Datos
       </button>
 
       <!-- Panel de Control de Tiempo -->
@@ -282,6 +282,15 @@
       <div>
         <label class="text-xs font-semibold text-gray-400 block mb-1">Asistencia (En campo - Opcional):</label>
         <select id="selAsistente" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white"></select>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-gray-400 block mb-1">Tipo de Gol (Opcional):</label>
+        <select id="selTipoGol" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-white">
+          <option value="Jugada">Jugada normal</option>
+          <option value="Penalti">Penalti ⚽</option>
+          <option value="Falta">Falta directa 🎯</option>
+        </select>
       </div>
 
       <div class="flex gap-2 pt-2">
@@ -684,6 +693,7 @@
     function abrirModalGol() {
       llenarSelectJugadores('selGoleador', partidoActual.enCampo);
       llenarSelectJugadores('selAsistente', partidoActual.enCampo, true);
+      document.getElementById('selTipoGol').value = 'Jugada';
       document.getElementById('modalGol').classList.remove('hidden');
     }
 
@@ -691,6 +701,7 @@
       let min = Math.floor(partidoActual.segundos / 60) || 1;
       let golId = parseInt(document.getElementById('selGoleador').value);
       let asistId = parseInt(document.getElementById('selAsistente').value);
+      let tipoGol = document.getElementById('selTipoGol').value;
 
       if(!golId) {
         alert("Selecciona al menos al autor del gol.");
@@ -702,6 +713,10 @@
 
       partidoActual.golesFavor++;
 
+      let detalleTipo = '';
+      if (tipoGol === 'Penalti') detalleTipo = ' (Penalti)';
+      if (tipoGol === 'Falta') detalleTipo = ' (Falta)';
+
       let evento = {
         id: Date.now(),
         tipo: 'GOL',
@@ -709,7 +724,8 @@
         periodo: partidoActual.periodo,
         jugadorId: golId,
         asistenteId: asistId || null,
-        texto: `<b>¡GOL!</b> #${goleador ? goleador.dorsal : ''} ${goleador ? goleador.nombre : ''}` + (asistente ? ` (Asistencia: #${asistente.dorsal} ${asistente.nombre})` : '')
+        tipoGol: tipoGol,
+        texto: `<b>¡GOL!</b> #${goleador ? goleador.dorsal : ''} ${goleador ? goleador.nombre : ''}${detalleTipo}` + (asistente ? ` (Asistencia: #${asistente.dorsal} ${asistente.nombre})` : '')
       };
 
       partidoActual.eventos.unshift(evento);
@@ -1333,7 +1349,7 @@
       txt += `🆚 *Partido:* ${parteIzquierda} vs ${parteDerecha} (${partidoActual.condicion})\n`;
       txt += `📅 *Fecha:* ${partidoActual.fecha}\n`;
       txt += `⚽ *Resultado:* ${marcadorOrdenado}\n\n`;
-      txt += `⏱️ *CRONOLOGÍA:*\n`;
+      txt += `⏱️️ *CRONOLOGÍA:*\n`;
 
       if(partidoActual.eventos.length === 0) {
         txt += `Sin eventos registrados.\n`;
