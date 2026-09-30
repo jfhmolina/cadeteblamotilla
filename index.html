@@ -8,6 +8,8 @@
   <!-- INTEGRACIÓN DE FIREBASE DATABASE -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- LIBRERÍA DE SEGURIDAD PARA CIFRADO DE CLAVES -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <style>
     /* Estilos personalizados para optimizar en móviles */
     body { -webkit-tap-highlight-color: transparent; }
@@ -96,7 +98,7 @@
       <!-- Panel de Control de Tiempo -->
       <div class="bg-gray-800 rounded-xl p-3 border border-gray-700 shadow flex items-center justify-between gap-2">
         <button id="btnTimer" onclick="toggleTimer()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1">
-          ▶️ Iniciar Tiempo
+          ▶️️ Iniciar Tiempo
         </button>
         <button onclick="cambiarPeriodo()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2.5 rounded-lg text-xs font-bold">
           🔄 Cambiar Parte
@@ -394,12 +396,12 @@
 
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
-    // CONTROL DE ACCESO POR USUARIOS MULTIPLE
+    // CONTROL DE ACCESO CON CIFRADO SHA-256
     const USUARIOS = {
-      "1234": "Sergio",
-      "5678": "Jorge",
-      "1111": "Isa",
-      "9999": "Jose"
+      "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4": "Sergio", // Hash de "1234"
+      "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92": "Jorge",  // Hash de "5678"
+      "66a043b9fe135d0b79d0339d05a300ba598ab21cf290a8ed70927b960c973335": "Isa",    // Hash de "1111"
+      "15e2b0d3c33891ebb0f1ef609ec419420c20e320ce94c65fbc8c3312448eb225": "Jose"    // Hash de "9999"
     };
 
     function actualizarNombreUsuarioHeader() {
@@ -412,10 +414,11 @@
 
     function comprobarAcceso() {
       const valor = document.getElementById('claveAcceso').value.trim();
+      const valorHash = CryptoJS.SHA256(valor).toString();
       
-      if (USUARIOS[valor]) {
+      if (USUARIOS[valorHash]) {
         sessionStorage.setItem('futbol_acceso_ok', '1');
-        sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
+        sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valorHash]);
         
         actualizarNombreUsuarioHeader();
         document.getElementById('pantallaAcceso').classList.add('hidden');
