@@ -525,7 +525,7 @@
             if (!timerInterval) iniciarTimerLoop();
           } else {
             let segs = obtenerSegundosActuales();
-            btnTimer.innerText = segs > 0 ? '▶️ Reanudar Tiempo' : '▶️️ Iniciar Tiempo';
+            btnTimer.innerText = segs > 0 ? '▶️ Reanudar Tiempo' : '▶ Iniciar Tiempo';
             btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
             clearInterval(timerInterval);
             timerInterval = null;
@@ -610,7 +610,13 @@
           partidoActual.enCampo.forEach(id => {
             partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + minsDiferencia;
           });
-          guardarEstadoPartido();
+          
+          // Guardamos únicamente en localStorage sin forzar una resincronización completa de Firebase
+          // que destruya o reinicie el bucle del temporizador en ejecución
+          partidoActual.segundos = totalSegundos;
+          localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
+          db.ref('partidoActual/tiemposJugadores').set(partidoActual.tiemposJugadores);
+          db.ref('partidoActual/segundos').set(totalSegundos);
         }
       }, 1000);
     }
