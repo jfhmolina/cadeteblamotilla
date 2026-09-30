@@ -498,14 +498,29 @@
         const data = snapshot.val();
         if (data) {
           if (data.plantilla) plantilla = data.plantilla;
+          
           if (data.partidoActual) {
-            partidoActual = data.partidoActual;
+            // Si el temporizador local está corriendo, NO sobreescribimos los segundos ni el estado running
+            // para evitar saltos o que Firebase resetee el reloj en pantalla.
+            if (!partidoActual.corriendo) {
+              partidoActual = data.partidoActual;
+            } else {
+              // Mantenemos segundos y startTime del local mientras esté activo
+              let segsLocales = partidoActual.segundos;
+              let startTimeLocal = partidoActual.startTime;
+              partidoActual = data.partidoActual;
+              partidoActual.segundos = segsLocales;
+              partidoActual.startTime = startTimeLocal;
+              partidoActual.corriendo = true;
+            }
+
             partidoActual.convocados = partidoActual.convocados || [];
             partidoActual.titulares = partidoActual.titulares || [];
             partidoActual.enCampo = partidoActual.enCampo || [];
             partidoActual.eventos = partidoActual.eventos || [];
             partidoActual.tiemposJugadores = partidoActual.tiemposJugadores || {};
           }
+
           if (data.historialPartidos) historialPartidos = data.historialPartidos;
         } else {
           sincronizarTodoFirebase();
@@ -527,8 +542,10 @@
             let segs = obtenerSegundosActuales();
             btnTimer.innerText = segs > 0 ? '▶️ Reanudar Tiempo' : '▶ Iniciar Tiempo';
             btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-            clearInterval(timerInterval);
-            timerInterval = null;
+            if (timerInterval) {
+              clearInterval(timerInterval);
+              timerInterval = null;
+            }
           }
         }
       });
@@ -595,7 +612,8 @@
     }
 
     function iniciarTimerLoop() {
-      clearInterval(timerInterval);
+      if (timerInterval) clearInterval(timerInterval);
+      
       let ultimoMinutoSincronizado = Math.floor(obtenerSegundosActuales() / 60);
 
       timerInterval = setInterval(() => {
@@ -611,10 +629,9 @@
             partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + minsDiferencia;
           });
           
-          // Guardamos únicamente en localStorage sin forzar una resincronización completa de Firebase
-          // que destruya o reinicie el bucle del temporizador en ejecución
-          partidoActual.segundos = totalSegundos;
           localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
+          
+          // Actualización atómica de campos individuales en Firebase para evitar repetición de loops
           db.ref('partidoActual/tiemposJugadores').set(partidoActual.tiemposJugadores);
           db.ref('partidoActual/segundos').set(totalSegundos);
         }
@@ -787,7 +804,7 @@
       guardarEstadoPartido();
     }
 
-    // MODAL DE SUSTITUCIONES
+    // MODAL DE SUSTITUCIÓNES
     function abrirModalSustitucion() {
       llenarSelectJugadores('selSale', partidoActual.enCampo);
       let banquillo = partidoActual.convocados.filter(id => !partidoActual.enCampo.includes(id));
