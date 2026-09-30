@@ -294,7 +294,6 @@
       <div class="flex flex-wrap gap-1.5">
         <button onclick="insertarChip('Buena presión')" class="bg-slate-800 hover:bg-slate-700 text-[11px] px-2.5 py-1 rounded-full text-slate-300">Buena presión</button>
         <button onclick="insertarChip('Falta táctica')" class="bg-slate-800 hover:bg-slate-700 text-[11px] px-2.5 py-1 rounded-full text-slate-300">Falta táctica</button>
-        <button onclick="insertarChip('Marca en Córner')" class="bg-slate-800 hover:bg-slate-700 text-[11px] px-2.5 py-1 rounded-full text-slate-300">Marca en Córner</button>
         <button onclick="insertarChip('Tiro al palo')" class="bg-slate-800 hover:bg-slate-700 text-[11px] px-2.5 py-1 rounded-full text-slate-300">Tiro al palo</button>
       </div>
       <textarea id="txtNota" rows="3" placeholder="Escribe aquí tu observación..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"></textarea>
@@ -505,7 +504,7 @@
         btn.className = 'flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/10 active:scale-[0.98]';
         iniciarTimerLoop();
       } else {
-        btn.innerText = '▶️ Reanudar Tiempo';
+        btn.innerText = '▶️️ Reanudar Tiempo';
         btn.className = 'flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-500/10 active:scale-[0.98]';
         clearInterval(timerInterval);
         timerInterval = null;
@@ -1094,16 +1093,15 @@
               ${generarListaTopHtml(topAsist, statsAsist)}
             </div>
           </div>
-          <!-- FILA 2: MINUTOS Y TARJETAS -->
-          <div class="grid grid-cols-2 gap-2.5">
-            <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
-              <span class="text-[11px] text-emerald-400 block font-bold mb-1.5 uppercase truncate">⏱️ Top Minutos</span>
-              ${generarListaTopHtml(topMins, statsMins, "'")}
-            </div>
-            <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
-              <span class="text-[11px] text-amber-400 block font-bold mb-1.5 uppercase truncate">🟨 Top Tarjetas</span>
-              ${generarListaTopTarjetasHtml(topTarjetas, statsTarjetas)}
-            </div>
+          <!-- FILA 2: MINUTOS JUGADOS -->
+          <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+            <span class="text-[11px] text-emerald-400 block font-bold mb-1.5 uppercase truncate">⏱️ Top Minutos</span>
+            ${generarListaTopHtml(topMins, statsMins, "'")}
+          </div>
+          <!-- FILA 3: TARJETAS -->
+          <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+            <span class="text-[11px] text-amber-400 block font-bold mb-1.5 uppercase truncate">🟨 Top Tarjetas</span>
+            ${generarListaTopTarjetasHtml(topTarjetas, statsTarjetas)}
           </div>
         </div>
       `;
