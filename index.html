@@ -347,27 +347,16 @@
         condicion: 'Local',
         golesFavor: 0,
         golesRival: 0,
-        segundosAcumulados: 0, 
-        tiempoInicio: null,     
+        segundos: 0,
         corriendo: false,
         periodo: '1ª Parte',
         convocados: [], 
         titulares: [], 
         enCampo: [],
-        expulsados: [], 
+        expulsados: [], // Control de jugadores expulsados
         eventos: [],    
-        tiemposJugadores: {},
-        historialTiempoJugadores: [] // Para auditoría exacta de entradas y salidas
+        tiemposJugadores: {} 
       };
-    }
-
-    function calcularSegundosActuales() {
-      let seg = partidoActual.segundosAcumulados || 0;
-      if (partidoActual.corriendo && partidoActual.tiempoInicio) {
-        let diff = Math.floor((Date.now() - partidoActual.tiempoInicio) / 1000);
-        seg += Math.max(0, diff);
-      }
-      return seg;
     }
 
     window.onload = function() {
@@ -383,23 +372,21 @@
             partidoActual.expulsados = partidoActual.expulsados || [];
             partidoActual.eventos = partidoActual.eventos || [];
             partidoActual.tiemposJugadores = partidoActual.tiemposJugadores || {};
-            partidoActual.historialTiempoJugadores = partidoActual.historialTiempoJugadores || [];
-            partidoActual.segundosAcumulados = partidoActual.segundosAcumulados || 0;
           }
           if (data.historialPartidos) historialPartidos = data.historialPartidos;
         } else {
           sincronizarTodoFirebase();
         }
 
-        recalcularMinutosEnVivo();
-        actualizarBotonTimerUI();
         renderizarPlantilla();
         renderizarPartidoActual();
         renderizarHistorial();
         cargarSelectorJugadoresFicha();
         renderizarMetricasEquipoGlobal();
         
-        iniciarTimerLoop();
+        if (partidoActual.corriendo && !timerInterval) {
+          iniciarTimerLoop();
+        }
       });
     };
 
@@ -433,87 +420,43 @@
     }
 
     function toggleTimer() {
-      let ahora = Date.now();
-      if (!partidoActual.corriendo) {
-        partidoActual.corriendo = true;
-        partidoActual.tiempoInicio = ahora;
-        
-        // Registrar hora de entrada para todos los que están en campo
-        partidoActual.enCampo.forEach(id => {
-          partidoActual.historialTiempoJugadores.push({
-            jugadorId: id,
-            inicio: ahora,
-            fin: null
-          });
-        });
-      } else {
-        let segsTranscurridos = Math.floor((ahora - partidoActual.tiempoInicio) / 1000);
-        partidoActual.segundosAcumulados = (partidoActual.segundosAcumulados || 0) + segsTranscurridos;
-        partidoActual.corriendo = false;
-        partidoActual.tiempoInicio = null;
-
-        // Cerra las ventanas de tiempo activas de los jugadores
-        partidoActual.historialTiempoJugadores.forEach(h => {
-          if (h.fin === null) h.fin = ahora;
-        });
-      }
-
-      recalcularMinutosEnVivo();
-      actualizarBotonTimerUI();
-      guardarEstadoPartido();
-    }
-
-    function actualizarBotonTimerUI() {
+      partidoActual.corriendo = !partidoActual.corriendo;
       const btn = document.getElementById('btnTimer');
-      if (!btn) return;
+
       if (partidoActual.corriendo) {
         btn.innerText = '⏸ Pausar Tiempo';
         btn.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+        iniciarTimerLoop();
       } else {
         btn.innerText = '▶️ Reanudar Tiempo';
         btn.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+        clearInterval(timerInterval);
+        timerInterval = null;
       }
+      guardarEstadoPartido();
     }
 
     function iniciarTimerLoop() {
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
-        actualizarRelojUI();
         if (partidoActual.corriendo) {
-          recalcularMinutosEnVivo();
-          let secPestana = document.getElementById('sec-minutos');
-          if (secPestana && !secPestana.classList.contains('hidden')) {
-            renderizarMinutos();
+          partidoActual.segundos++;
+          actualizarRelojUI();
+
+          if (partidoActual.segundos % 60 === 0) {
+            partidoActual.enCampo.forEach(id => {
+              partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + 1;
+            });
+            guardarEstadoPartido();
           }
         }
       }, 1000);
     }
 
-    function recalcularMinutosEnVivo() {
-      let ahora = Date.now();
-      let tiempos = {};
-
-      partidoActual.convocados.forEach(id => { tiempos[id] = 0; });
-
-      if (partidoActual.historialTiempoJugadores) {
-        partidoActual.historialTiempoJugadores.forEach(h => {
-          let finTemp = h.fin ? h.fin : (partidoActual.corriendo ? ahora : h.inicio);
-          let duracionSeg = Math.max(0, Math.floor((finTemp - h.inicio) / 1000));
-          tiempos[h.jugadorId] = (tiempos[h.jugadorId] || 0) + duracionSeg;
-        });
-      }
-
-      Object.keys(tiempos).forEach(id => {
-        partidoActual.tiemposJugadores[id] = Math.floor(tiempos[id] / 60);
-      });
-    }
-
     function actualizarRelojUI() {
-      let totalSegundos = calcularSegundosActuales();
-      let m = String(Math.floor(totalSegundos / 60)).padStart(2, '0');
-      let s = String(totalSegundos % 60).padStart(2, '0');
+      let m = String(Math.floor(partidoActual.segundos / 60)).padStart(2, '0');
+      let s = String(partidoActual.segundos % 60).padStart(2, '0');
       document.getElementById('cronometro').innerText = `${m}:${s}`;
-      document.getElementById('periodoTag').innerText = partidoActual.periodo || '1ª Parte';
     }
 
     function cambiarPeriodo() {
@@ -601,18 +544,6 @@
       partidoActual.condicion = document.getElementById('cfgCondicion').value;
       partidoActual.enCampo = [...partidoActual.titulares];
       partidoActual.expulsados = [];
-      partidoActual.historialTiempoJugadores = [];
-
-      let ahora = Date.now();
-      if (partidoActual.corriendo) {
-        partidoActual.enCampo.forEach(id => {
-          partidoActual.historialTiempoJugadores.push({
-            jugadorId: id,
-            inicio: ahora,
-            fin: null
-          });
-        });
-      }
       
       partidoActual.convocados.forEach(id => {
         if(partidoActual.tiemposJugadores[id] === undefined) partidoActual.tiemposJugadores[id] = 0;
@@ -631,7 +562,7 @@
     }
 
     function confirmarGol() {
-      let min = Math.floor(calcularSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let golId = parseInt(document.getElementById('selGoleador').value);
       let asistId = parseInt(document.getElementById('selAsistente').value);
       let tipoGol = document.getElementById('selTipoGol').value;
@@ -667,7 +598,7 @@
     }
 
     function registrarGolRival() {
-      let min = Math.floor(calcularSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       partidoActual.golesRival++;
 
       let evento = {
@@ -684,6 +615,7 @@
     }
 
     function abrirModalSustitucion() {
+      // Excluimos a los expulsados del campo y del banquillo
       let disponiblesEnCampo = partidoActual.enCampo.filter(id => !partidoActual.expulsados.includes(id));
       let banquillo = partidoActual.convocados.filter(id => !partidoActual.enCampo.includes(id) && !partidoActual.expulsados.includes(id));
       
@@ -693,7 +625,7 @@
     }
 
     function confirmarSustitucion() {
-      let min = Math.floor(calcularSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let saleId = parseInt(document.getElementById('selSale').value);
       let entraId = parseInt(document.getElementById('selEntra').value);
 
@@ -704,22 +636,6 @@
 
       let sale = plantilla.find(j => j.id === saleId);
       let entra = plantilla.find(j => j.id === entraId);
-      let ahora = Date.now();
-
-      // Cerrar ciclo del jugador que sale
-      if (partidoActual.corriendo) {
-        partidoActual.historialTiempoJugadores.forEach(h => {
-          if (h.jugadorId === saleId && h.fin === null) {
-            h.fin = ahora;
-          }
-        });
-        // Iniciar ciclo del jugador que entra
-        partidoActual.historialTiempoJugadores.push({
-          jugadorId: entraId,
-          inicio: ahora,
-          fin: null
-        });
-      }
 
       partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== saleId);
       partidoActual.enCampo.push(entraId);
@@ -733,24 +649,23 @@
       };
 
       partidoActual.eventos.unshift(evento);
-      recalcularMinutosEnVivo();
       cerrarModal('modalSustitucion');
       renderizarPartidoActual();
       guardarEstadoPartido();
     }
 
     function abrirModalTarjeta() {
+      // Solo mostrar en select a los convocados que no estén ya expulsados
       let noExpulsados = partidoActual.convocados.filter(id => !partidoActual.expulsados.includes(id));
       llenarSelectJugadores('selTarjetaJugador', noExpulsados);
       document.getElementById('modalTarjeta').classList.remove('hidden');
     }
 
     function confirmarTarjeta() {
-      let min = Math.floor(calcularSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let jugId = parseInt(document.getElementById('selTarjetaJugador').value);
       let tipo = document.getElementById('selTipoTarjeta').value;
       let jug = plantilla.find(j => j.id === jugId);
-      let ahora = Date.now();
 
       if(!jugId) {
         alert("Selecciona un jugador.");
@@ -759,21 +674,7 @@
 
       let amarillasPrevias = partidoActual.eventos.filter(e => e.tipo === 'TARJETA' && e.jugadorId === jugId && e.subtipo === 'Amarilla').length;
 
-      let esExpulsion = (tipo === 'Amarilla' && amarillasPrevias >= 1) || tipo === 'Roja';
-
-      if (esExpulsion) {
-        partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
-        if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
-
-        if (partidoActual.corriendo) {
-          partidoActual.historialTiempoJugadores.forEach(h => {
-            if (h.jugadorId === jugId && h.fin === null) {
-              h.fin = ahora;
-            }
-          });
-        }
-
-        let subtip = (tipo === 'Amarilla' && amarillasPrevias >= 1) ? '2ª Amarilla / Roja 🟥' : 'Tarjeta Roja 🟥';
+      if (tipo === 'Amarilla' && amarillasPrevias >= 1) {
         let evento = {
           id: Date.now(),
           tipo: 'TARJETA',
@@ -781,11 +682,22 @@
           minuto: min,
           periodo: partidoActual.periodo,
           jugadorId: jugId,
-          texto: `<b>${subtip}:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
+          texto: `<b>2ª Amarilla / Roja 🟥:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
         };
+        partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+        if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
         partidoActual.eventos.unshift(evento);
-        alert(`⚠ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha sido expulsado.`);
+        
+        alert(`⚠ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto su segunda tarjeta amarilla. ¡Tiene que salir del campo (expulsado)!`);
       } else {
+        if (tipo === 'Roja') {
+          partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+          if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
+          alert(`⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto tarjeta roja directa y debe abandonar el campo.`);
+        } else if (tipo === 'Amarilla') {
+          // Primera amarilla: sin alerta emergente, solo se registra
+        }
+
         let evento = {
           id: Date.now(),
           tipo: 'TARJETA',
@@ -798,7 +710,6 @@
         partidoActual.eventos.unshift(evento);
       }
 
-      recalcularMinutosEnVivo();
       cerrarModal('modalTarjeta');
       renderizarPartidoActual();
       guardarEstadoPartido();
@@ -817,7 +728,7 @@
     }
 
     function confirmarNota() {
-      let min = Math.floor(calcularSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let jugId = parseInt(document.getElementById('selNotaJugador').value);
       let jug = plantilla.find(j => j.id === jugId);
       let nota = document.getElementById('txtNota').value.trim();
@@ -845,6 +756,7 @@
       if(opcionVacia) sel.innerHTML = `<option value="">-- Ninguno / General --</option>`;
 
       listaIds.forEach(id => {
+        // Excluir jugadores expulsados de cualquier desplegable del juego
         if (partidoActual.expulsados && partidoActual.expulsados.includes(id)) return;
 
         let j = plantilla.find(x => x.id === id);
@@ -913,7 +825,6 @@
     }
 
     function renderizarMinutos() {
-      recalcularMinutosEnVivo();
       let filtro = (document.getElementById('filtroJugadorMinutos').value || '').toLowerCase();
       let contActual = document.getElementById('listaMinutosJugadores');
       contActual.innerHTML = '';
@@ -1224,19 +1135,9 @@
 
     function finalizarPartido() {
       if(!confirm("¿Deseas dar por finalizado este partido y guardarlo en el historial?")) return;
-      
-      let ahora = Date.now();
-      if (partidoActual.corriendo) {
-        let segsTranscurridos = Math.floor((ahora - partidoActual.tiempoInicio) / 1000);
-        partidoActual.segundosAcumulados = (partidoActual.segundosAcumulados || 0) + segsTranscurridos;
-        partidoActual.corriendo = false;
-        partidoActual.tiempoInicio = null;
-        partidoActual.historialTiempoJugadores.forEach(h => {
-          if (h.fin === null) h.fin = ahora;
-        });
-      }
-
-      recalcularMinutosEnVivo();
+      clearInterval(timerInterval);
+      timerInterval = null;
+      partidoActual.corriendo = false;
 
       historialPartidos.unshift({...partidoActual, id: Date.now()});
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
@@ -1245,7 +1146,8 @@
       partidoActual = crearEstadoPartido();
       guardarEstadoPartido();
 
-      actualizarBotonTimerUI();
+      document.getElementById('btnTimer').innerText = '▶️ Iniciar Tiempo';
+      document.getElementById('btnTimer').className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
       document.getElementById('periodoTag').innerText = '1ª Parte';
 
       renderizarPartidoActual();
@@ -1330,7 +1232,6 @@
     }
 
     function copiarMinutosPartidoActualWhatsApp() {
-      recalcularMinutosEnVivo();
       let esLoc = partidoActual.condicion === 'Local';
       let rivalNom = partidoActual.rival || 'Por definir';
       let txt = `⏱️ *MINUTOS*\n🆚 ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}\n\n`;
