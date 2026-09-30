@@ -350,7 +350,7 @@
         segundos: 0,
         corriendo: false,
         periodo: '1ª Parte',
-        convocados: [], 
+        convocados: plantilla.map(j => j.id), 
         titulares: [], 
         enCampo: [],
         expulsados: [], // Control de jugadores expulsados
@@ -366,7 +366,9 @@
           if (data.plantilla) plantilla = data.plantilla;
           if (data.partidoActual) {
             partidoActual = data.partidoActual;
-            partidoActual.convocados = partidoActual.convocados || [];
+            partidoActual.convocados = (partidoActual.convocados && partidoActual.convocados.length > 0) 
+              ? partidoActual.convocados 
+              : plantilla.map(j => j.id);
             partidoActual.titulares = partidoActual.titulares || [];
             partidoActual.enCampo = partidoActual.enCampo || [];
             partidoActual.expulsados = partidoActual.expulsados || [];
@@ -469,6 +471,11 @@
       document.getElementById('cfgRival').value = partidoActual.rival;
       document.getElementById('cfgFecha').value = partidoActual.fecha;
       document.getElementById('cfgCondicion').value = partidoActual.condicion;
+
+      // Si no hay convocados registrados previamente en el partido, se asignan todos los jugadores
+      if (!partidoActual.convocados || partidoActual.convocados.length === 0) {
+        partidoActual.convocados = plantilla.map(j => j.id);
+      }
 
       let cont = document.getElementById('selectorConvocatoria');
       cont.innerHTML = '';
