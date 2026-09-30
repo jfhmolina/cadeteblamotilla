@@ -146,7 +146,7 @@
     <section id="sec-historial" class="hidden space-y-3">
       <div class="flex justify-between items-center mb-2">
         <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Partidos Guardados</h2>
-        <button onclick="vaciarTodoElHistorial()" id="btnVaciarHistorial" class="text-xs bg-red-900/40 hover:bg-red-900/80 text-red-300 border border-red-700/50 px-2.5 py-1 rounded font-semibold hidden">🗑️ Vaciar todo</button>
+        <button onclick="vaciarTodoElHistorial()" id="btnVaciarHistorial" class="text-xs bg-red-900/40 hover:bg-red-900/80 text-red-300 border border-red-700/50 px-2.5 py-1 rounded font-semibold hidden">🗑 Vaciar todo</button>
       </div>
       <div id="listaHistorial" class="space-y-3"></div>
     </section>
@@ -352,7 +352,8 @@
         periodo: '1ª Parte',
         convocados: [], 
         titulares: [], 
-        enCampo: [],    
+        enCampo: [],
+        expulsados: [], // Control de jugadores expulsados
         eventos: [],    
         tiemposJugadores: {} 
       };
@@ -368,6 +369,7 @@
             partidoActual.convocados = partidoActual.convocados || [];
             partidoActual.titulares = partidoActual.titulares || [];
             partidoActual.enCampo = partidoActual.enCampo || [];
+            partidoActual.expulsados = partidoActual.expulsados || [];
             partidoActual.eventos = partidoActual.eventos || [];
             partidoActual.tiemposJugadores = partidoActual.tiemposJugadores || {};
           }
@@ -422,7 +424,7 @@
       const btn = document.getElementById('btnTimer');
 
       if (partidoActual.corriendo) {
-        btn.innerText = '⏸️️ Pausar Tiempo';
+        btn.innerText = '⏸ Pausar Tiempo';
         btn.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
         iniciarTimerLoop();
       } else {
@@ -541,6 +543,7 @@
       partidoActual.fecha = document.getElementById('cfgFecha').value;
       partidoActual.condicion = document.getElementById('cfgCondicion').value;
       partidoActual.enCampo = [...partidoActual.titulares];
+      partidoActual.expulsados = [];
       
       partidoActual.convocados.forEach(id => {
         if(partidoActual.tiemposJugadores[id] === undefined) partidoActual.tiemposJugadores[id] = 0;
@@ -612,8 +615,11 @@
     }
 
     function abrirModalSustitucion() {
-      llenarSelectJugadores('selSale', partidoActual.enCampo);
-      let banquillo = partidoActual.convocados.filter(id => !partidoActual.enCampo.includes(id));
+      // Excluimos a los expulsados del campo y del banquillo
+      let disponiblesEnCampo = partidoActual.enCampo.filter(id => !partidoActual.expulsados.includes(id));
+      let banquillo = partidoActual.convocados.filter(id => !partidoActual.enCampo.includes(id) && !partidoActual.expulsados.includes(id));
+      
+      llenarSelectJugadores('selSale', disponiblesEnCampo);
       llenarSelectJugadores('selEntra', banquillo);
       document.getElementById('modalSustitucion').classList.remove('hidden');
     }
@@ -649,7 +655,9 @@
     }
 
     function abrirModalTarjeta() {
-      llenarSelectJugadores('selTarjetaJugador', partidoActual.convocados);
+      // Solo mostrar en select a los convocados que no estén ya expulsados
+      let noExpulsados = partidoActual.convocados.filter(id => !partidoActual.expulsados.includes(id));
+      llenarSelectJugadores('selTarjetaJugador', noExpulsados);
       document.getElementById('modalTarjeta').classList.remove('hidden');
     }
 
@@ -664,11 +672,9 @@
         return;
       }
 
-      // Contar amarillas previas de este jugador en el partido actual
       let amarillasPrevias = partidoActual.eventos.filter(e => e.tipo === 'TARJETA' && e.jugadorId === jugId && e.subtipo === 'Amarilla').length;
 
       if (tipo === 'Amarilla' && amarillasPrevias >= 1) {
-        // Doble amarilla -> Roja automática y aviso de expulsión
         let evento = {
           id: Date.now(),
           tipo: 'TARJETA',
@@ -679,18 +685,17 @@
           texto: `<b>2ª Amarilla / Roja 🟥:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}`
         };
         partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+        if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
         partidoActual.eventos.unshift(evento);
         
-        alert(`⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto su segunda tarjeta amarilla. ¡Tiene que salir del campo (expulsado)!`);
+        alert(`⚠ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto su segunda tarjeta amarilla. ¡Tiene que salir del campo (expulsado)!`);
       } else {
         if (tipo === 'Roja') {
           partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+          if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
           alert(`⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto tarjeta roja directa y debe abandonar el campo.`);
         } else if (tipo === 'Amarilla') {
-          // Si es su primera amarilla estando en el campo, avisamos de que está apercibido
-          if (partidoActual.enCampo.includes(jugId)) {
-            alert(`🟨 Tarjeta amarilla registrada para #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''}. (¡Cuidado, si ve otra amarilla tendrá que salir del campo!).`);
-          }
+          // Primera amarilla: sin alerta emergente, solo se registra
         }
 
         let evento = {
@@ -712,7 +717,8 @@
 
     function abrirModalNota() {
       document.getElementById('txtNota').value = '';
-      llenarSelectJugadores('selNotaJugador', partidoActual.convocados, true);
+      let noExpulsados = partidoActual.convocados.filter(id => !partidoActual.expulsados.includes(id));
+      llenarSelectJugadores('selNotaJugador', noExpulsados, true);
       document.getElementById('modalNota').classList.remove('hidden');
     }
 
@@ -750,6 +756,9 @@
       if(opcionVacia) sel.innerHTML = `<option value="">-- Ninguno / General --</option>`;
 
       listaIds.forEach(id => {
+        // Excluir jugadores expulsados de cualquier desplegable del juego
+        if (partidoActual.expulsados && partidoActual.expulsados.includes(id)) return;
+
         let j = plantilla.find(x => x.id === id);
         if(j) {
           sel.innerHTML += `<option value="${j.id}">#${j.dorsal} - ${j.nombre}</option>`;
@@ -832,6 +841,17 @@
           visiblesActual++;
           let mins = partidoActual.tiemposJugadores[id] || 0;
           let enC = partidoActual.enCampo.includes(id);
+          let expulsado = partidoActual.expulsados && partidoActual.expulsados.includes(id);
+
+          let estadoBadge = 'BANQUILLO';
+          let badgeClass = 'bg-gray-700 text-gray-400';
+          if (expulsado) {
+            estadoBadge = 'EXPULSADO';
+            badgeClass = 'bg-red-900/60 text-red-300';
+          } else if (enC) {
+            estadoBadge = 'EN CAMPO';
+            badgeClass = 'bg-green-900/60 text-green-300';
+          }
 
           let div = document.createElement('div');
           div.className = 'flex items-center justify-between p-2.5 bg-gray-800 rounded-lg border border-gray-700 text-xs';
@@ -842,8 +862,8 @@
             </div>
             <div class="flex items-center gap-3">
               <span class="font-bold text-green-400 font-mono">${mins} min</span>
-              <span class="text-[10px] px-2 py-0.5 rounded font-bold ${enC ? 'bg-green-900/60 text-green-300' : 'bg-gray-700 text-gray-400'}">
-                ${enC ? 'EN CAMPO' : 'BANQUILLO'}
+              <span class="text-[10px] px-2 py-0.5 rounded font-bold ${badgeClass}">
+                ${estadoBadge}
               </span>
             </div>
           `;
@@ -933,11 +953,8 @@
         }
       });
 
-      // Ordenar Top 3 Goleadores
       let topGoles = Object.keys(statsGoles).sort((a, b) => statsGoles[b] - statsGoles[a]).slice(0, 3);
-      // Ordenar Top 3 Asistentes
       let topAsist = Object.keys(statsAsist).sort((a, b) => statsAsist[b] - statsAsist[a]).slice(0, 3);
-      // Ordenar Top 3 Minutos
       let topMins = Object.keys(statsMins).sort((a, b) => statsMins[b] - statsMins[a]).slice(0, 3);
 
       function generarListaTopHtml(idsArray, statsObj, unidad = '') {
@@ -946,7 +963,7 @@
           let j = plantilla.find(x => x.id == id);
           let val = statsObj[id] || 0;
           let nombre = j ? j.nombre : '-';
-          if (val === 0 && index > 0) return; // Si no hay datos, ocultar puestos vacíos extra
+          if (val === 0 && index > 0) return;
           html += `
             <div class="flex justify-between items-center py-0.5 border-b border-gray-700/40 last:border-0">
               <span class="text-gray-300 truncate max-w-[140px]">${index + 1}. ${nombre}</span>
