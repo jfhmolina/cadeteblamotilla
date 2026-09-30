@@ -122,8 +122,8 @@
 
     <section id="sec-fichaJugador" class="hidden space-y-4">
       <div id="contenedorResumenEquipo" class="bg-gray-800 p-3 rounded-xl border border-gray-700 space-y-3">
-        <h2 class="text-sm font-bold text-green-400">🏆 Métricas del Equipo (Global)</h2>
-        <div id="metricasEquipoBody" class="grid grid-cols-3 gap-2 text-center text-xs"></div>
+        <h2 class="text-sm font-bold text-green-400">🏆 Métricas del Equipo (Global - Top 3)</h2>
+        <div id="metricasEquipoBody" class="space-y-3 text-xs"></div>
       </div>
       <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 space-y-3">
         <h2 class="text-sm font-bold text-green-400">🔍 Ficha Estadística de Jugador</h2>
@@ -422,7 +422,7 @@
       const btn = document.getElementById('btnTimer');
 
       if (partidoActual.corriendo) {
-        btn.innerText = '⏸️ Pausar Tiempo';
+        btn.innerText = '⏸️️ Pausar Tiempo';
         btn.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
         iniciarTimerLoop();
       } else {
@@ -664,9 +664,11 @@
         return;
       }
 
+      // Contar amarillas previas de este jugador en el partido actual
       let amarillasPrevias = partidoActual.eventos.filter(e => e.tipo === 'TARJETA' && e.jugadorId === jugId && e.subtipo === 'Amarilla').length;
 
       if (tipo === 'Amarilla' && amarillasPrevias >= 1) {
+        // Doble amarilla -> Roja automática y aviso de expulsión
         let evento = {
           id: Date.now(),
           tipo: 'TARJETA',
@@ -678,10 +680,19 @@
         };
         partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
         partidoActual.eventos.unshift(evento);
+        
+        alert(`⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto su segunda tarjeta amarilla. ¡Tiene que salir del campo (expulsado)!`);
       } else {
         if (tipo === 'Roja') {
           partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+          alert(`⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto tarjeta roja directa y debe abandonar el campo.`);
+        } else if (tipo === 'Amarilla') {
+          // Si es su primera amarilla estando en el campo, avisamos de que está apercibido
+          if (partidoActual.enCampo.includes(jugId)) {
+            alert(`🟨 Tarjeta amarilla registrada para #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''}. (¡Cuidado, si ve otra amarilla tendrá que salir del campo!).`);
+          }
         }
+
         let evento = {
           id: Date.now(),
           tipo: 'TARJETA',
@@ -922,29 +933,44 @@
         }
       });
 
-      let topGoleadorId = Object.keys(statsGoles).reduce((a, b) => statsGoles[a] > statsGoles[b] ? a : b, Object.keys(statsGoles)[0]);
-      let topAsistenteId = Object.keys(statsAsist).reduce((a, b) => statsAsist[a] > statsAsist[b] ? a : b, Object.keys(statsAsist)[0]);
-      let topMinutosId = Object.keys(statsMins).reduce((a, b) => statsMins[a] > statsMins[b] ? a : b, Object.keys(statsMins)[0]);
+      // Ordenar Top 3 Goleadores
+      let topGoles = Object.keys(statsGoles).sort((a, b) => statsGoles[b] - statsGoles[a]).slice(0, 3);
+      // Ordenar Top 3 Asistentes
+      let topAsist = Object.keys(statsAsist).sort((a, b) => statsAsist[b] - statsAsist[a]).slice(0, 3);
+      // Ordenar Top 3 Minutos
+      let topMins = Object.keys(statsMins).sort((a, b) => statsMins[b] - statsMins[a]).slice(0, 3);
 
-      let topGol = plantilla.find(j => j.id == topGoleadorId);
-      let topAsis = plantilla.find(j => j.id == topAsistenteId);
-      let topMin = plantilla.find(j => j.id == topMinutosId);
+      function generarListaTopHtml(idsArray, statsObj, unidad = '') {
+        let html = '';
+        idsArray.forEach((id, index) => {
+          let j = plantilla.find(x => x.id == id);
+          let val = statsObj[id] || 0;
+          let nombre = j ? j.nombre : '-';
+          if (val === 0 && index > 0) return; // Si no hay datos, ocultar puestos vacíos extra
+          html += `
+            <div class="flex justify-between items-center py-0.5 border-b border-gray-700/40 last:border-0">
+              <span class="text-gray-300 truncate max-w-[140px]">${index + 1}. ${nombre}</span>
+              <span class="font-mono font-bold text-white">${val}${unidad}</span>
+            </div>
+          `;
+        });
+        return html || '<div class="text-gray-500 italic">Sin datos</div>';
+      }
 
       cont.innerHTML = `
-        <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-700">
-          <span class="text-[10px] text-gray-400 block font-bold">⚽ GOLEADOR</span>
-          <span class="text-xs font-bold text-blue-400 block truncate">${topGol && statsGoles[topGoleadorId] > 0 ? topGol.nombre : '-'}</span>
-          <span class="text-[11px] font-mono text-gray-300 font-bold">${topGol ? statsGoles[topGoleadorId] : 0}</span>
-        </div>
-        <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-700">
-          <span class="text-[10px] text-gray-400 block font-bold">🎯 ASISTENTE</span>
-          <span class="text-xs font-bold text-purple-400 block truncate">${topAsis && statsAsist[topAsistenteId] > 0 ? topAsis.nombre : '-'}</span>
-          <span class="text-[11px] font-mono text-gray-300 font-bold">${topAsis ? statsAsist[topAsistenteId] : 0}</span>
-        </div>
-        <div class="bg-gray-900/60 p-2 rounded-lg border border-gray-700">
-          <span class="text-[10px] text-gray-400 block font-bold">⏱️ MINUTOS</span>
-          <span class="text-xs font-bold text-green-400 block truncate">${topMin && statsMins[topMinutosId] > 0 ? topMin.nombre : '-'}</span>
-          <span class="text-[11px] font-mono text-gray-300 font-bold">${topMin ? statsMins[topMinutosId] : 0}'</span>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div class="bg-gray-900/60 p-2.5 rounded-lg border border-gray-700">
+            <span class="text-[11px] text-blue-400 block font-bold mb-1">⚽ Top 3 Goleadores</span>
+            ${generarListaTopHtml(topGoles, statsGoles)}
+          </div>
+          <div class="bg-gray-900/60 p-2.5 rounded-lg border border-gray-700">
+            <span class="text-[11px] text-purple-400 block font-bold mb-1">🎯 Top 3 Asistentes</span>
+            ${generarListaTopHtml(topAsist, statsAsist)}
+          </div>
+          <div class="bg-gray-900/60 p-2.5 rounded-lg border border-gray-700">
+            <span class="text-[11px] text-green-400 block font-bold mb-1">⏱️ Top 3 Minutos</span>
+            ${generarListaTopHtml(topMins, statsMins, "'")}
+          </div>
         </div>
       `;
     }
