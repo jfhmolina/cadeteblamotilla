@@ -479,7 +479,6 @@
         golesFavor: 0,
         golesRival: 0,
         segundos: 0,
-        startTime: null,
         corriendo: false,
         periodo: '1ª Parte',
         convocados: [], 
@@ -498,29 +497,14 @@
         const data = snapshot.val();
         if (data) {
           if (data.plantilla) plantilla = data.plantilla;
-          
           if (data.partidoActual) {
-            // Si el temporizador local está corriendo, NO sobreescribimos los segundos ni el estado running
-            // para evitar saltos o que Firebase resetee el reloj en pantalla.
-            if (!partidoActual.corriendo) {
-              partidoActual = data.partidoActual;
-            } else {
-              // Mantenemos segundos y startTime del local mientras esté activo
-              let segsLocales = partidoActual.segundos;
-              let startTimeLocal = partidoActual.startTime;
-              partidoActual = data.partidoActual;
-              partidoActual.segundos = segsLocales;
-              partidoActual.startTime = startTimeLocal;
-              partidoActual.corriendo = true;
-            }
-
+            partidoActual = data.partidoActual;
             partidoActual.convocados = partidoActual.convocados || [];
             partidoActual.titulares = partidoActual.titulares || [];
             partidoActual.enCampo = partidoActual.enCampo || [];
             partidoActual.eventos = partidoActual.eventos || [];
             partidoActual.tiemposJugadores = partidoActual.tiemposJugadores || {};
           }
-
           if (data.historialPartidos) historialPartidos = data.historialPartidos;
         } else {
           sincronizarTodoFirebase();
@@ -532,21 +516,8 @@
         cargarSelectorJugadoresFicha();
         renderizarMetricasEquipoGlobal();
         
-        const btnTimer = document.getElementById('btnTimer');
-        if (btnTimer) {
-          if (partidoActual.corriendo) {
-            btnTimer.innerText = '⏸️ Pausar Tiempo';
-            btnTimer.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-            if (!timerInterval) iniciarTimerLoop();
-          } else {
-            let segs = obtenerSegundosActuales();
-            btnTimer.innerText = segs > 0 ? '▶️ Reanudar Tiempo' : '▶ Iniciar Tiempo';
-            btnTimer.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-            if (timerInterval) {
-              clearInterval(timerInterval);
-              timerInterval = null;
-            }
-          }
+        if (partidoActual.corriendo && !timerInterval) {
+          iniciarTimerLoop();
         }
       });
     };
@@ -581,67 +552,44 @@
       }
     }
 
-    // CÁLCULO DINÁMICO DE TIEMPO
-    function obtenerSegundosActuales() {
-      if (partidoActual.corriendo && partidoActual.startTime) {
-        let transcurridoMs = Date.now() - partidoActual.startTime;
-        return (partidoActual.segundos || 0) + Math.floor(transcurridoMs / 1000);
-      }
-      return partidoActual.segundos || 0;
-    }
-
+    // CONTROL DE TIEMPO SIMPLE MANTENIDO
     function toggleTimer() {
+      partidoActual.corriendo = !partidoActual.corriendo;
+      const btn = document.getElementById('btnTimer');
+
       if (partidoActual.corriendo) {
-        partidoActual.segundos = obtenerSegundosActuales();
-        partidoActual.corriendo = false;
-        partidoActual.startTime = null;
+        btn.innerText = '⏸️ Pausar Tiempo';
+        btn.className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
+        iniciarTimerLoop();
+      } else {
+        btn.innerText = '▶️ Reanudar Tiempo';
+        btn.className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
         clearInterval(timerInterval);
         timerInterval = null;
-
-        document.getElementById('btnTimer').innerText = '▶️ Reanudar Tiempo';
-        document.getElementById('btnTimer').className = 'flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
-      } else {
-        partidoActual.corriendo = true;
-        partidoActual.startTime = Date.now();
-        iniciarTimerLoop();
-
-        document.getElementById('btnTimer').innerText = '⏸️ Pausar Tiempo';
-        document.getElementById('btnTimer').className = 'flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1';
       }
       guardarEstadoPartido();
     }
 
     function iniciarTimerLoop() {
       if (timerInterval) clearInterval(timerInterval);
-      
-      let ultimoMinutoSincronizado = Math.floor(obtenerSegundosActuales() / 60);
-
       timerInterval = setInterval(() => {
-        let totalSegundos = obtenerSegundosActuales();
-        actualizarRelojUI();
+        if (partidoActual.corriendo) {
+          partidoActual.segundos++;
+          actualizarRelojUI();
 
-        let minutoActual = Math.floor(totalSegundos / 60);
-        if (minutoActual > ultimoMinutoSincronizado) {
-          let minsDiferencia = minutoActual - ultimoMinutoSincronizado;
-          ultimoMinutoSincronizado = minutoActual;
-
-          partidoActual.enCampo.forEach(id => {
-            partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + minsDiferencia;
-          });
-          
-          localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
-          
-          // Actualización atómica de campos individuales en Firebase para evitar repetición de loops
-          db.ref('partidoActual/tiemposJugadores').set(partidoActual.tiemposJugadores);
-          db.ref('partidoActual/segundos').set(totalSegundos);
+          if (partidoActual.segundos % 60 === 0) {
+            partidoActual.enCampo.forEach(id => {
+              partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + 1;
+            });
+            guardarEstadoPartido();
+          }
         }
       }, 1000);
     }
 
     function actualizarRelojUI() {
-      let totalSeg = obtenerSegundosActuales();
-      let m = String(Math.floor(totalSeg / 60)).padStart(2, '0');
-      let s = String(Math.floor(totalSeg % 60)).padStart(2, '0');
+      let m = String(Math.floor(partidoActual.segundos / 60)).padStart(2, '0');
+      let s = String(partidoActual.segundos % 60).padStart(2, '0');
       document.getElementById('cronometro').innerText = `${m}:${s}`;
     }
 
@@ -750,7 +698,7 @@
     }
 
     function confirmarGol() {
-      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let golId = parseInt(document.getElementById('selGoleador').value);
       let asistId = parseInt(document.getElementById('selAsistente').value);
       let tipoGol = document.getElementById('selTipoGol').value;
@@ -787,7 +735,7 @@
     }
 
     function registrarGolRival() {
-      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
 
       partidoActual.golesRival++;
 
@@ -813,7 +761,7 @@
     }
 
     function confirmarSustitucion() {
-      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let saleId = parseInt(document.getElementById('selSale').value);
       let entraId = parseInt(document.getElementById('selEntra').value);
 
@@ -849,7 +797,7 @@
     }
 
     function confirmarTarjeta() {
-      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let jugId = parseInt(document.getElementById('selTarjetaJugador').value);
       let tipo = document.getElementById('selTipoTarjeta').value;
       let jug = plantilla.find(j => j.id === jugId);
@@ -912,7 +860,7 @@
     }
 
     function confirmarNota() {
-      let min = Math.floor(obtenerSegundosActuales() / 60) || 1;
+      let min = Math.floor(partidoActual.segundos / 60) || 1;
       let jugId = parseInt(document.getElementById('selNotaJugador').value);
       let jug = plantilla.find(j => j.id === jugId);
       let nota = document.getElementById('txtNota').value.trim();
@@ -1330,7 +1278,6 @@
 
     // PERSISTENCIA Y GUARDADO EN FIREBASE + LOCALSTORAGE
     function guardarEstadoPartido() {
-      partidoActual.segundos = obtenerSegundosActuales();
       localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
       db.ref('partidoActual').set(partidoActual);
     }
@@ -1378,9 +1325,7 @@
       clearInterval(timerInterval);
       timerInterval = null;
 
-      partidoActual.segundos = obtenerSegundosActuales();
       partidoActual.corriendo = false;
-      partidoActual.startTime = null;
 
       historialPartidos.unshift({...partidoActual, id: Date.now()});
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
