@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ayudante Míster - La Motilla B</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- INTEGRACIÓN DE FIREBASE DATABASE -->
+  <!-- INTEGRACIÓN DE FIREBASE (APP, AUTH Y DATABASE) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     /* Estilos personalizados para optimizar en móviles */
@@ -21,9 +22,13 @@
     <div class="w-full max-w-xs bg-gray-800 border border-gray-700 rounded-2xl p-5 text-center">
       <div class="text-3xl mb-1">📋</div>
       <h1 class="text-green-400 font-bold uppercase tracking-wider text-sm mb-1">La Motilla Cadete B </h1>
-      <p class="text-xs text-gray-400 mb-4">Introduce la clave de acceso</p>
-      <input type="password" id="claveAcceso" inputmode="numeric" maxlength="10" autofocus placeholder="••••" class="w-full text-center bg-gray-900 border border-gray-700 rounded-lg p-3 text-lg text-white tracking-widest mb-2 focus:outline-none focus:border-green-500" onkeydown="if(event.key === 'Enter') comprobarAcceso()">
-      <p id="errorAcceso" class="text-xs text-red-400 mb-2 hidden">Clave incorrecta</p>
+      <p class="text-xs text-gray-400 mb-4">Introduce tus credenciales de acceso</p>
+      
+      <input type="email" id="emailAcceso" placeholder="correo@ejemplo.com" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-white mb-2 focus:outline-none focus:border-green-500">
+      
+      <input type="password" id="claveAcceso" placeholder="••••••••" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm text-white mb-2 focus:outline-none focus:border-green-500" onkeydown="if(event.key === 'Enter') comprobarAcceso()">
+      
+      <p id="errorAcceso" class="text-xs text-red-400 mb-2 hidden">Credenciales incorrectas</p>
       <button onclick="comprobarAcceso()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 rounded-lg text-sm">Entrar</button>
     </div>
   </div>
@@ -96,7 +101,7 @@
       <!-- Panel de Control de Tiempo -->
       <div class="bg-gray-800 rounded-xl p-3 border border-gray-700 shadow flex items-center justify-between gap-2">
         <button id="btnTimer" onclick="toggleTimer()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-1">
-          ▶️ Iniciar Tiempo
+          ▶️️ Iniciar Tiempo
         </button>
         <button onclick="cambiarPeriodo()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2.5 rounded-lg text-xs font-bold">
           🔄 Cambiar Parte
@@ -239,13 +244,6 @@
 
   </div>
 
-  <script>
-    if (sessionStorage.getItem('futbol_acceso_ok') === '1') {
-      document.getElementById('pantallaAcceso').classList.add('hidden');
-      document.getElementById('appContenido').classList.remove('hidden');
-    }
-  </script>
-
   <!-- MODAL: PREPARAR CONVOCATORIA Y 11 -->
   <div id="modalConvocatoria" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-3">
     <div class="bg-gray-800 w-full max-w-md rounded-2xl p-4 border border-gray-700 max-h-[90vh] flex flex-col">
@@ -384,57 +382,73 @@
   <!-- CÓDIGO Y LÓGICA DE LA APLICACIÓN CON FIREBASE EN TIEMPO REAL -->
   <script>
     // ----------------------------------------------------
-    // CONFIGURACIÓN E INICIALIZACIÓN DE FIREBASE DATABASE
+    // CONFIGURACIÓN E INICIALIZACIÓN DE FIREBASE
     // ----------------------------------------------------
     const firebaseConfig = {
       databaseURL: "https://la-motilla-cadete-b-c70c1-default-rtdb.firebaseio.com"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const auth = firebase.auth();
 
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
-    // CONTROL DE ACCESO POR USUARIOS MULTIPLE
-    const USUARIOS = {
-      "1234": "Sergio",
-      "5678": "Jorge",
-      "1111": "Isa",
-      "9999": "Jose"
-    };
-
-    function actualizarNombreUsuarioHeader() {
-      const usuarioActivo = sessionStorage.getItem('futbol_usuario_activo');
+    function actualizarNombreUsuarioHeader(usuarioEmail) {
       const elHeader = document.getElementById('tituloCabecera');
       if (elHeader) {
-        elHeader.innerText = usuarioActivo ? `La Motilla ( ${usuarioActivo} )` : 'La Motilla';
+        elHeader.innerText = usuarioEmail ? `La Motilla ( ${usuarioEmail} )` : 'La Motilla';
       }
     }
 
+    // AUTENTICACIÓN CON FIREBASE AUTH
     function comprobarAcceso() {
-      const valor = document.getElementById('claveAcceso').value.trim();
-      
-      if (USUARIOS[valor]) {
-        sessionStorage.setItem('futbol_acceso_ok', '1');
-        sessionStorage.setItem('futbol_usuario_activo', USUARIOS[valor]);
-        
-        actualizarNombreUsuarioHeader();
-        document.getElementById('pantallaAcceso').classList.add('hidden');
-        document.getElementById('appContenido').classList.remove('hidden');
-      } else {
-        document.getElementById('errorAcceso').classList.remove('hidden');
-        document.getElementById('claveAcceso').value = '';
-        document.getElementById('claveAcceso').focus();
+      const email = document.getElementById('emailAcceso').value.trim();
+      const password = document.getElementById('claveAcceso').value;
+      const errorAcceso = document.getElementById('errorAcceso');
+
+      if (!email || !password) {
+        errorAcceso.innerText = "Introduce correo y contraseña";
+        errorAcceso.classList.remove('hidden');
+        return;
       }
+
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          errorAcceso.classList.add('hidden');
+          document.getElementById('emailAcceso').value = '';
+          document.getElementById('claveAcceso').value = '';
+        })
+        .catch((error) => {
+          console.error("Error en autenticación:", error);
+          errorAcceso.innerText = "Correo o contraseña incorrectos";
+          errorAcceso.classList.remove('hidden');
+        });
     }
 
     function cerrarSesion() {
-      sessionStorage.removeItem('futbol_acceso_ok');
-      sessionStorage.removeItem('futbol_usuario_activo');
-      document.getElementById('claveAcceso').value = '';
-      document.getElementById('errorAcceso').classList.add('hidden');
-      document.getElementById('appContenido').classList.add('hidden');
-      document.getElementById('pantallaAcceso').classList.remove('hidden');
+      auth.signOut().then(() => {
+        document.getElementById('emailAcceso').value = '';
+        document.getElementById('claveAcceso').value = '';
+        document.getElementById('errorAcceso').classList.add('hidden');
+      }).catch((error) => {
+        console.error("Error al cerrar sesión:", error);
+      });
     }
+
+    // OBSERVADOR DE ESTADO DE AUTENTICACIÓN
+    auth.onAuthStateChanged((user) => {
+      const pantallaAcceso = document.getElementById('pantallaAcceso');
+      const appContenido = document.getElementById('appContenido');
+
+      if (user) {
+        actualizarNombreUsuarioHeader(user.email);
+        pantallaAcceso.classList.add('hidden');
+        appContenido.classList.remove('hidden');
+      } else {
+        pantallaAcceso.classList.remove('hidden');
+        appContenido.classList.add('hidden');
+      }
+    });
 
     // PLANTILLA BASE PRE-CARGADA
     const plantillaInicial = [
@@ -490,8 +504,6 @@
     }
 
     window.onload = function() {
-      actualizarNombreUsuarioHeader();
-
       // Sincronización en Tiempo Real mediante Firebase
       db.ref().on('value', snapshot => {
         const data = snapshot.val();
