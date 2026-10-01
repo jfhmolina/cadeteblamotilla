@@ -166,7 +166,10 @@
       <!-- SECCIÓN ESTADÍSTICAS Y JUGADOR -->
       <section id="sec-fichaJugador" class="hidden space-y-4">
         <div id="contenedorResumenEquipo" class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg space-y-3">
-          <h2 class="text-xs font-extrabold text-emerald-400 uppercase tracking-wider">🏆 Métricas del Equipo (Global Top 3)</h2>
+          <div class="flex justify-between items-center">
+            <h2 class="text-xs font-extrabold text-emerald-400 uppercase tracking-wider">🏆 Métricas del Equipo (Global Top 3)</h2>
+            <button onclick="copiarMetricasEquipoWhatsApp()" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲 Copiar Informe</button>
+          </div>
           <div id="metricasEquipoBody" class="space-y-3 text-xs"></div>
         </div>
 
@@ -1306,7 +1309,7 @@
           </div>
           <div class="absolute top-3 right-3 flex items-center gap-1">
             <button onclick="copiarReportePartidoHistorialWhatsApp(${p.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲</button>
-            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑️</button>
+            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑️️</button>
           </div>
           <div class="flex justify-between items-center text-xs font-bold text-white bg-slate-950 p-2.5 rounded-xl border border-slate-800/80"><span>Resultado Final:</span><span class="text-emerald-400 font-mono text-sm">${marcadorOrdenado}</span></div>
           <div class="pt-1"><span class="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Eventos:</span><ul class="space-y-1 pl-1 max-h-36 overflow-y-auto">${listaEventos}</ul></div>
@@ -1385,6 +1388,86 @@
       p.eventos.slice().reverse().forEach(ev => {
         txt += `• [Min ${ev.minuto}'] ${ev.texto.replace(/<[^>]*>/g, '')}\n`;
       });
+      copiarAlPortapapeles(txt);
+    }
+
+    function copiarMetricasEquipoWhatsApp() {
+      let todosLosPartidos = [...historialPartidos];
+      if (partidoActual.convocados && partidoActual.convocados.length > 0) {
+        todosLosPartidos.push(partidoActual);
+      }
+
+      let statsGoles = {}, statsAsist = {}, statsMins = {}, statsTarjetas = {};
+      plantilla.forEach(j => { 
+        statsGoles[j.id] = 0; 
+        statsAsist[j.id] = 0; 
+        statsMins[j.id] = 0; 
+        statsTarjetas[j.id] = { amarillas: 0, rojas: 0, total: 0 };
+      });
+
+      todosLosPartidos.forEach(p => {
+        if (p.tiemposJugadores) {
+          Object.keys(p.tiemposJugadores).forEach(id => {
+            if (statsMins[id] !== undefined) statsMins[id] += p.tiemposJugadores[id] || 0;
+          });
+        }
+        if (p.eventos) {
+          p.eventos.forEach(ev => {
+            if (ev.tipo === 'GOL') {
+              if (ev.jugadorId && statsGoles[ev.jugadorId] !== undefined) statsGoles[ev.jugadorId]++;
+              if (ev.asistenteId && statsAsist[ev.asistenteId] !== undefined) statsAsist[ev.asistenteId]++;
+            }
+            if (ev.tipo === 'TARJETA') {
+              if (ev.jugadorId && statsTarjetas[ev.jugadorId]) {
+                if (ev.subtipo === 'Amarilla' || (ev.texto && ev.texto.includes('Amarilla'))) {
+                  statsTarjetas[ev.jugadorId].amarillas++;
+                  statsTarjetas[ev.jugadorId].total++;
+                }
+                if (ev.subtipo === 'Roja' || (ev.texto && ev.texto.includes('Roja'))) {
+                  statsTarjetas[ev.jugadorId].rojas++;
+                  statsTarjetas[ev.jugadorId].total++;
+                }
+              }
+            }
+          });
+        }
+      });
+
+      let topGoles = Object.keys(statsGoles).sort((a, b) => statsGoles[b] - statsGoles[a]).slice(0, 3);
+      let topAsist = Object.keys(statsAsist).sort((a, b) => statsAsist[b] - statsAsist[a]).slice(0, 3);
+      let topMins = Object.keys(statsMins).sort((a, b) => statsMins[b] - statsMins[a]).slice(0, 3);
+      let topTarjetas = Object.keys(statsTarjetas).sort((a, b) => statsTarjetas[b].total - statsTarjetas[a].total).slice(0, 3);
+
+      let txt = `🏆 *MÉTRICAS DEL EQUIPO (TOP 3)* - ${NOMBRE_MI_EQUIPO}\n\n`;
+
+      txt += `⚽ *TOP GOLEADORES*\n`;
+      topGoles.forEach((id, idx) => {
+        let j = plantilla.find(x => x.id == id);
+        let val = statsGoles[id] || 0;
+        if (val > 0 || idx === 0) txt += `${idx + 1}. ${j ? j.nombre : '-'}: *${val} goles*\n`;
+      });
+
+      txt += `\n🎯 *TOP ASISTENTES*\n`;
+      topAsist.forEach((id, idx) => {
+        let j = plantilla.find(x => x.id == id);
+        let val = statsAsist[id] || 0;
+        if (val > 0 || idx === 0) txt += `${idx + 1}. ${j ? j.nombre : '-'}: *${val} asist.*\n`;
+      });
+
+      txt += `\n⏱️ *TOP MINUTOS*\n`;
+      topMins.forEach((id, idx) => {
+        let j = plantilla.find(x => x.id == id);
+        let val = statsMins[id] || 0;
+        if (val > 0 || idx === 0) txt += `${idx + 1}. ${j ? j.nombre : '-'}: *${val} min*\n`;
+      });
+
+      txt += `\n🟨 *TOP TARJETAS*\n`;
+      topTarjetas.forEach((id, idx) => {
+        let j = plantilla.find(x => x.id == id);
+        let item = statsTarjetas[id] || { amarillas: 0, rojas: 0, total: 0 };
+        if (item.total > 0 || idx === 0) txt += `${idx + 1}. ${j ? j.nombre : '-'}: *🟨 ${item.amarillas} | 🟥 ${item.rojas}*\n`;
+      });
+
       copiarAlPortapapeles(txt);
     }
 
