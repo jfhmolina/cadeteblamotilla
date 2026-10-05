@@ -117,6 +117,10 @@
           </button>
         </div>
 
+        <button onclick="abrirModalOcasion()" class="w-full bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 py-3 rounded-2xl font-bold text-xs shadow flex items-center justify-center gap-2 transition active:scale-[0.99]">
+          🎯 OCASIÓN / PARADA
+        </button>
+
         <button onclick="registrarGolRival()" class="w-full bg-rose-950/30 hover:bg-rose-900/40 text-rose-400 border border-rose-800/40 py-3 rounded-2xl font-bold text-xs shadow flex items-center justify-center gap-2 transition active:scale-[0.99]">
           ⚠ + GOL RIVAL EN CONTRA
         </button>
@@ -312,6 +316,18 @@
     </div>
   </div>
 
+  <div id="modalOcasion" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 w-full max-w-md rounded-3xl p-5 border border-slate-800 space-y-3 shadow-2xl">
+      <h3 class="text-sm font-extrabold text-slate-200 uppercase tracking-wider">🎯 Ocasión / Parada</h3>
+      <div><label for="selTipoOcasion" class="text-xs font-bold text-slate-400 block mb-1">Tipo:</label><select id="selTipoOcasion" onchange="actualizarJugadoresOcasion()" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white"><option value="Tiro a puerta">Tiro a puerta 🎯</option><option value="Tiro fuera">Tiro fuera / alto</option><option value="Tiro al palo">Tiro al palo</option><option value="Parada">Parada del portero 🧤</option></select></div>
+      <div><label for="selOcasionJugador" class="text-xs font-bold text-slate-400 block mb-1">Jugador:</label><select id="selOcasionJugador" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white"></select></div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="cerrarModal('modalOcasion')" class="flex-1 bg-slate-800 text-slate-300 py-2.5 rounded-xl text-xs font-bold">Cancelar</button>
+        <button onclick="confirmarOcasion()" class="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2.5 rounded-xl text-xs font-bold transition">Registrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- SCRIPT LÓGICO -->
   <script>
     const firebaseConfig = {
@@ -343,7 +359,7 @@
       soloLectura = valor;
       const ocultar = (el) => { if (el) el.classList.toggle('hidden', soloLectura); };
       document.querySelectorAll(
-        '[onclick="prepararPartidoModal()"], [onclick="registrarGolRival()"], [onclick="agregarJugadorManual()"]'
+        '[onclick="prepararPartidoModal()"], [onclick="registrarGolRival()"], [onclick="agregarJugadorManual()"], [onclick="abrirModalOcasion()"]'
       ).forEach(ocultar);
       ocultar(document.getElementById('btnTimer').parentElement);
       ocultar(document.querySelector('[onclick="abrirModalGol()"]').parentElement);
@@ -353,6 +369,151 @@
         if (v) v.classList.add('hidden');
       }
       if (typeof renderTodo === 'function') renderTodo();
+    }
+
+
+    // ===== PORTEROS, OCASIONES / PARADAS Y EXPORTACIÓN =====
+    const DORSALES_PORTERO = [1, 13]; // Jose Hdez y Javi Conde
+
+    function esPorteroId(id) {
+      const j = plantilla.find(x => x.id === id);
+      return !!j && DORSALES_PORTERO.includes(Number(j.dorsal));
+    }
+
+    function abrirModalOcasion() {
+      if (soloLectura) return;
+      document.getElementById('selTipoOcasion').value = 'Tiro a puerta';
+      actualizarJugadoresOcasion();
+      document.getElementById('modalOcasion').classList.remove('hidden');
+    }
+
+    function actualizarJugadoresOcasion() {
+      const tipo = document.getElementById('selTipoOcasion').value;
+      let ids;
+      if (tipo === 'Parada') {
+        ids = partidoActual.enCampo.filter(esPorteroId);
+        if (ids.length === 0) ids = partidoActual.convocados.filter(esPorteroId);
+      } else {
+        ids = partidoActual.enCampo;
+      }
+      llenarSelectJugadores('selOcasionJugador', ids);
+    }
+
+    function confirmarOcasion() {
+      if (soloLectura) return;
+      let min = minutoActual();
+      let tipo = document.getElementById('selTipoOcasion').value;
+      let jugId = parseInt(document.getElementById('selOcasionJugador').value);
+      let jug = plantilla.find(j => j.id === jugId);
+
+      if (!jugId || !jug) {
+        alert("Selecciona un jugador.");
+        return;
+      }
+
+      let evento = {
+        id: Date.now(),
+        tipo: 'OCASION',
+        subtipo: tipo,
+        minuto: min,
+        periodo: partidoActual.periodo,
+        jugadorId: jugId,
+        texto: `<b>${esc(tipo)}:</b> #${esc(jug.dorsal)} ${esc(jug.nombre)}`
+      };
+
+      cerrarModal('modalOcasion');
+      anadirEvento(evento);
+      renderizarPartidoActual();
+    }
+
+    function construirExportacionPartido(p) {
+      const info = id => {
+        if (id === null || id === undefined) return null;
+        const j = plantilla.find(x => x.id === id);
+        return j ? { id: j.id, dorsal: j.dorsal, nombre: j.nombre } : { id: id };
+      };
+      const esLoc = p.condicion === 'Local';
+      const tiempos = p.tiemposJugadores || {};
+      const segs = p.segJugadores || {};
+
+      // Reconstrucción de quién está en el campo para saber qué portero encajó cada gol
+      const enCampo = new Set(p.titulares || []);
+      let cambiosCompletos = true;
+      const eventos = (p.eventos || []).slice().reverse().map(ev => {
+        if (ev.tipo === 'CAMBIO') {
+          if (ev.saleId && ev.entraId) { enCampo.delete(ev.saleId); enCampo.add(ev.entraId); }
+          else cambiosCompletos = false;
+        }
+        if (ev.tipo === 'TARJETA' && subtipoTarjeta(ev) === 'Roja' && ev.jugadorId) enCampo.delete(ev.jugadorId);
+        const out = {
+          id: ev.id,
+          tipo: ev.tipo,
+          subtipo: ev.tipo === 'TARJETA' ? subtipoTarjeta(ev) : (ev.subtipo || null),
+          minuto: ev.minuto,
+          periodo: ev.periodo,
+          jugador: info(ev.jugadorId),
+          asistente: info(ev.asistenteId),
+          tipoGol: ev.tipoGol || null,
+          sale: info(ev.saleId),
+          entra: info(ev.entraId),
+          segundaAmarilla: ev.segundaAmarilla === true,
+          texto: textoPlano(ev.texto)
+        };
+        if (ev.tipo === 'GOL_RIVAL') {
+          const porteros = [...enCampo].filter(esPorteroId);
+          out.porteroEnPorteria = (cambiosCompletos && porteros.length === 1) ? info(porteros[0]) : null;
+        }
+        return out;
+      });
+
+      return {
+        version: 1,
+        exportadoEn: new Date().toISOString(),
+        equipo: NOMBRE_MI_EQUIPO,
+        porteros: { dorsales: DORSALES_PORTERO },
+        partido: {
+          id: p.id,
+          rival: p.rival || 'Rival',
+          fecha: p.fecha,
+          condicion: p.condicion,
+          golesFavor: num(p.golesFavor),
+          golesRival: num(p.golesRival),
+          marcador: esLoc ? `${num(p.golesFavor)} - ${num(p.golesRival)}` : `${num(p.golesRival)} - ${num(p.golesFavor)}`,
+          duracionSegundos: num(p.segundos),
+          periodoFinal: p.periodo || null
+        },
+        jugadores: (p.convocados || []).map(id => {
+          const i = info(id);
+          return {
+            id: id,
+            dorsal: i ? i.dorsal : null,
+            nombre: i ? i.nombre : null,
+            portero: esPorteroId(id),
+            titular: (p.titulares || []).includes(id),
+            minutos: num(tiempos[id]),
+            segundos: (segs[id] !== undefined && segs[id] !== null) ? num(segs[id]) : null
+          };
+        }),
+        eventos: eventos
+      };
+    }
+
+    function exportarPartido(idPartido) {
+      const p = historialPartidos.find(x => x.id === idPartido);
+      if (!p) return;
+      const datos = construirExportacionPartido(p);
+      const quitarAcentos = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+      const slug = quitarAcentos(p.rival || 'rival').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'rival';
+      const nombreArchivo = `partido_${p.fecha || 'sin-fecha'}_${slug}.json`;
+      const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreArchivo;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     // Si Firebase rechaza una escritura por permisos, este usuario es de solo lectura
@@ -1257,6 +1418,7 @@
         if(ev.tipo === 'GOL_RIVAL') { color = 'border-rose-500 bg-rose-950/20'; icono = '⚽'; }
         if(ev.tipo === 'CAMBIO') { color = 'border-purple-500 bg-purple-950/20'; icono = '🔁'; }
         if(ev.tipo === 'TARJETA') { color = 'border-amber-500 bg-amber-950/20'; icono = '🟨'; }
+        if(ev.tipo === 'OCASION') { icono = ev.subtipo === 'Parada' ? '🧤' : '🎯'; }
 
         let div = document.createElement('div');
         div.className = `p-3 rounded-2xl border-l-4 ${color} text-xs flex justify-between items-center shadow-sm`;
@@ -1720,11 +1882,12 @@
         let listaEventos = p.eventos ? p.eventos.map(ev => `<li class="text-[11px] text-slate-400">• [Min ${esc(ev.minuto)}'] ${textoEventoSeguro(ev.texto)}</li>`).join('') : '';
 
         div.innerHTML = `
-          <div class="flex justify-between items-center border-b border-slate-800 pb-2 pr-14">
+          <div class="flex justify-between items-center border-b border-slate-800 pb-2 pr-24">
             <span class="font-extrabold text-white">${parteIzquierda} vs ${parteDerecha} (${esc(p.condicion)})</span>
             <span class="text-emerald-400 font-bold">${esc(p.fecha)}</span>
           </div>
           <div class="absolute top-3 right-3 flex items-center gap-1">
+            <button onclick="exportarPartido(${Number(p.id)})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Exportar partido">⬇️</button>
             <button onclick="copiarReportePartidoHistorialWhatsApp(${Number(p.id)})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲</button>
             ${soloLectura ? '' : `<button onclick="eliminarPartidoHistorial(${Number(p.id)})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑</button>`}
           </div>
@@ -1770,6 +1933,8 @@
         }
       } else if (ev.tipo === 'CAMBIO') {
         icono = '🔁 ';
+      } else if (ev.tipo === 'OCASION') {
+        icono = ev.subtipo === 'Parada' ? '🧤 ' : '🎯 ';
       } else if (ev.tipo === 'NOTA') {
         icono = '📝 ';
       }
