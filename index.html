@@ -329,6 +329,125 @@
 
     const NOMBRE_MI_EQUIPO = "La Motilla B";
 
+    // ===== MODO SOLO LECTURA =====
+    // Usuarios con permiso de lectura pero no de escritura en las reglas de Firebase.
+    // Además, si Firebase rechaza una escritura por permisos, la app pasa sola a solo lectura.
+    const UIDS_SOLO_LECTURA = ['DqkQvIb5gcOXta8v1BO93qAoMM22'];
+    let soloLectura = false;
+
+    function aplicarModoLectura(user) {
+      activarSoloLectura(!!(user && UIDS_SOLO_LECTURA.includes(user.uid)));
+    }
+
+    function activarSoloLectura(valor) {
+      soloLectura = valor;
+      const ocultar = (el) => { if (el) el.classList.toggle('hidden', soloLectura); };
+      document.querySelectorAll(
+        '[onclick="prepararPartidoModal()"], [onclick="registrarGolRival()"], [onclick="agregarJugadorManual()"]'
+      ).forEach(ocultar);
+      ocultar(document.getElementById('btnTimer').parentElement);
+      ocultar(document.querySelector('[onclick="abrirModalGol()"]').parentElement);
+      ocultar(document.querySelector('[onclick="finalizarPartido()"]').parentElement);
+      if (soloLectura) {
+        const v = document.getElementById('btnVaciarHistorial');
+        if (v) v.classList.add('hidden');
+      }
+      if (typeof renderTodo === 'function') renderTodo();
+    }
+
+    // Si Firebase rechaza una escritura por permisos, este usuario es de solo lectura
+    function errorEscritura(err) {
+      console.error('Error al guardar:', err);
+      if (err && (err.code === 'PERMISSION_DENIED' || /permission_denied/i.test(String(err.message || err)))) {
+        if (!soloLectura) activarSoloLectura(true);
+      }
+    }
+
+    // ===== UTILIDADES =====
+    // Escapa texto de usuario antes de insertarlo con innerHTML (evita XSS)
+    function esc(s) {
+      return String(s === null || s === undefined ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    // Los eventos guardan su texto con <b>..</b>; cualquier otra etiqueta se neutraliza al pintar
+    function textoEventoSeguro(t) {
+      return String(t === null || t === undefined ? '' : t).replace(/<(?!\/?b>)/g, '&lt;');
+    }
+    // Texto plano de un evento (para WhatsApp): quita etiquetas y decodifica entidades
+    function textoPlano(t) {
+      return String(t || '').replace(/<[^>]*>/g, '')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    }
+    function num(v) {
+      v = Number(v);
+      return isFinite(v) ? v : 0;
+    }
+    // Firebase devuelve arrays como objetos cuando hay huecos y descarta los vacios
+    function aArray(v) {
+      if (Array.isArray(v)) return v.filter(x => x !== null && x !== undefined);
+      if (v && typeof v === 'object') return Object.values(v).filter(x => x !== null && x !== undefined);
+      return [];
+    }
+    function aObjeto(v) {
+      const o = {};
+      if (Array.isArray(v)) {
+        v.forEach((x, i) => { if (x !== null && x !== undefined) o[i] = x; });
+      } else if (v && typeof v === 'object') {
+        Object.keys(v).forEach(k => { if (v[k] !== null && v[k] !== undefined) o[k] = v[k]; });
+      }
+      return o;
+    }
+    function subtipoTarjeta(ev) {
+      if (ev.subtipo) return ev.subtipo;
+      const t = ev.texto || '';
+      if (t.includes('Roja')) return 'Roja';
+      if (t.includes('Amarilla')) return 'Amarilla';
+      return '';
+    }
+    function fechaLocalISO() {
+      const d = new Date();
+      return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    }
+    function leerLocal(clave) {
+      try { return JSON.parse(localStorage.getItem(clave)); } catch (e) { return null; }
+    }
+    function idsActivos() {
+      return plantilla.filter(j => j.activo !== false).map(j => j.id);
+    }
+    function recalcularMarcador(p) {
+      p.golesFavor = (p.eventos || []).filter(e => e.tipo === 'GOL').length;
+      p.golesRival = (p.eventos || []).filter(e => e.tipo === 'GOL_RIVAL').length;
+    }
+    function normalizarPartido(p) {
+      p.convocados = aArray(p.convocados);
+      if (p.convocados.length === 0) p.convocados = idsActivos();
+      p.titulares = aArray(p.titulares);
+      p.enCampo = aArray(p.enCampo);
+      p.expulsados = aArray(p.expulsados);
+      p.eventos = aArray(p.eventos);
+      p.tiemposJugadores = aObjeto(p.tiemposJugadores);
+      p.segJugadores = aObjeto(p.segJugadores);
+      p.segundos = num(p.segundos);
+      p.corriendo = !!p.corriendo;
+      p.inicioTs = p.inicioTs || null;
+      p.iniciado = !!p.iniciado;
+      p.ultimoCorteSeg = (p.ultimoCorteSeg === null || p.ultimoCorteSeg === undefined) ? null : num(p.ultimoCorteSeg);
+      p.periodo = p.periodo || '1ª Parte';
+      p.condicion = p.condicion || 'Local';
+      p.rival = p.rival || '';
+      p.fecha = p.fecha || fechaLocalISO();
+      recalcularMarcador(p);
+      return p;
+    }
+    function normalizarHistorial(p) {
+      p.convocados = aArray(p.convocados);
+      p.titulares = aArray(p.titulares);
+      p.eventos = aArray(p.eventos);
+      p.tiemposJugadores = aObjeto(p.tiemposJugadores);
+      return p;
+    }
+
     function actualizarNombreUsuarioHeader(user) {
       const elHeader = document.getElementById('tituloCabecera');
       if (elHeader) {
@@ -382,11 +501,15 @@
     auth.onAuthStateChanged((user) => {
       if (user) {
         actualizarNombreUsuarioHeader(user);
+        aplicarModoLectura(user);
         document.getElementById('pantallaAcceso').classList.add('hidden');
         document.getElementById('appContenido').classList.remove('hidden');
+        iniciarListeners();
       } else {
         document.getElementById('appContenido').classList.add('hidden');
         document.getElementById('pantallaAcceso').classList.remove('hidden');
+        activarSoloLectura(false);
+        detenerListeners();
       }
     });
 
@@ -417,68 +540,116 @@
       { id: 30, dorsal: 30, nombre: "Jorge Ramos" }
     ];
 
-    let plantilla = JSON.parse(localStorage.getItem('futbol_plantilla')) || plantillaInicial;
-    let partidoActual = JSON.parse(localStorage.getItem('futbol_partido_activo')) || crearEstadoPartido();
-    let historialPartidos = JSON.parse(localStorage.getItem('futbol_historial')) || [];
+    let plantilla = leerLocal('futbol_plantilla') || plantillaInicial;
+    let partidoActual = normalizarPartido(leerLocal('futbol_partido_activo') || crearEstadoPartido());
+    let historialPartidos = (leerLocal('futbol_historial') || []).map(normalizarHistorial);
     let timerInterval = null;
 
     function crearEstadoPartido() {
       return {
         rival: '',
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: fechaLocalISO(),
         condicion: 'Local',
         golesFavor: 0,
         golesRival: 0,
         segundos: 0,
         corriendo: false,
+        inicioTs: null,
+        iniciado: false,
+        ultimoCorteSeg: null,
         periodo: '1ª Parte',
-        convocados: plantilla.map(j => j.id), 
+        convocados: plantilla.filter(j => j.activo !== false).map(j => j.id), 
         titulares: [], 
         enCampo: [],
         expulsados: [], 
         eventos: [],    
-        tiemposJugadores: {} 
+        tiemposJugadores: {},
+        segJugadores: {}
       };
     }
 
-    window.onload = function() {
-      db.ref().on('value', snapshot => {
-        const data = snapshot.val();
-        if (data) {
-          if (data.plantilla) plantilla = data.plantilla;
-          if (data.partidoActual) {
-            partidoActual = data.partidoActual;
-            partidoActual.convocados = (partidoActual.convocados && partidoActual.convocados.length > 0) 
-              ? partidoActual.convocados 
-              : plantilla.map(j => j.id);
-            partidoActual.titulares = partidoActual.titulares || [];
-            partidoActual.enCampo = partidoActual.enCampo || [];
-            partidoActual.expulsados = partidoActual.expulsados || [];
-            partidoActual.eventos = partidoActual.eventos || [];
-            partidoActual.tiemposJugadores = partidoActual.tiemposJugadores || {};
-          }
-          if (data.historialPartidos) historialPartidos = data.historialPartidos;
-        } else {
-          sincronizarTodoFirebase();
-        }
+    // ===== ESTADO REMOTO: escuchas separadas por nodo, solo tras autenticarse =====
+    let listenersActivos = false;
+    let refsListeners = [];
 
-        renderizarPlantilla();
-        renderizarPartidoActual();
-        renderizarHistorial();
-        cargarSelectorJugadoresFicha();
-        renderizarMetricasEquipoGlobal();
-        
-        if (partidoActual.corriendo && !timerInterval) {
-          iniciarTimerLoop();
+    function renderTodo() {
+      renderizarPlantilla();
+      renderizarPartidoActual();
+      renderizarHistorial();
+      cargarSelectorJugadoresFicha();
+      renderizarMetricasEquipoGlobal();
+    }
+
+    function iniciarListeners() {
+      if (listenersActivos) return;
+      listenersActivos = true;
+
+      const recibidos = {};
+      let semillaComprobada = false;
+      function comprobarSemilla(nodo, valor) {
+        if (semillaComprobada) return;
+        recibidos[nodo] = (valor !== null && valor !== undefined);
+        if (Object.keys(recibidos).length === 3) {
+          semillaComprobada = true;
+          // Igual que antes: solo si la base de datos está totalmente vacía se siembra con los datos locales
+          if (!recibidos.plantilla && !recibidos.partidoActual && !recibidos.historialPartidos) {
+            sincronizarTodoFirebase();
+          }
         }
-      });
-    };
+      }
+      function errorListener(err) {
+        console.error('Error de lectura en Firebase:', err);
+        listenersActivos = false;
+      }
+
+      const refPlantilla = db.ref('plantilla');
+      const refPartido = db.ref('partidoActual');
+      const refHistorial = db.ref('historialPartidos');
+      refsListeners = [refPlantilla, refPartido, refHistorial];
+
+      refPlantilla.on('value', snap => {
+        const v = snap.val();
+        comprobarSemilla('plantilla', v);
+        if (v) plantilla = aArray(v);
+        renderTodo();
+      }, errorListener);
+
+      refPartido.on('value', snap => {
+        const v = snap.val();
+        comprobarSemilla('partidoActual', v);
+        if (v) {
+          const migrarReloj = !!(v.corriendo && !v.inicioTs); // partido en marcha guardado con la versión antigua
+          partidoActual = normalizarPartido(v);
+          if (migrarReloj) {
+            partidoActual.inicioTs = Date.now();
+            if (!soloLectura) guardarCampos(['inicioTs']);
+          }
+        }
+        renderTodo();
+        if (partidoActual.corriendo) iniciarTimerLoop(); else detenerTimerLoop();
+      }, errorListener);
+
+      refHistorial.on('value', snap => {
+        const v = snap.val();
+        comprobarSemilla('historialPartidos', v);
+        historialPartidos = v ? aArray(v).map(normalizarHistorial) : [];
+        renderTodo();
+      }, errorListener);
+    }
+
+    function detenerListeners() {
+      refsListeners.forEach(r => r.off('value'));
+      refsListeners = [];
+      listenersActivos = false;
+      detenerTimerLoop();
+    }
 
     function sincronizarTodoFirebase() {
+      if (soloLectura) return;
       db.ref().set({
-        plantilla: plantilla,
-        partidoActual: partidoActual,
-        historialPartidos: historialPartidos
+        plantilla: JSON.parse(JSON.stringify(plantilla)),
+        partidoActual: JSON.parse(JSON.stringify(partidoActual)),
+        historialPartidos: JSON.parse(JSON.stringify(historialPartidos))
       });
     }
 
@@ -503,79 +674,231 @@
       }
     }
 
-    function toggleTimer() {
-      partidoActual.corriendo = !partidoActual.corriendo;
-      const btn = document.getElementById('btnTimer');
+    // ===== RELOJ (basado en marcas de tiempo: no se descuadra con el móvil bloqueado ni con los alert) =====
+    function segundosActuales() {
+      let s = num(partidoActual.segundos);
+      if (partidoActual.corriendo && partidoActual.inicioTs) {
+        s += Math.max(0, Math.floor((Date.now() - partidoActual.inicioTs) / 1000));
+      }
+      return s;
+    }
 
+    function minutoActual() {
+      return Math.floor(segundosActuales() / 60) || 1;
+    }
+
+    function partidoIniciado(p = partidoActual) {
+      return !!(p.iniciado || p.corriendo || num(p.segundos) > 0 || (p.eventos && p.eventos.length > 0));
+    }
+
+    function actualizarBotonTimer() {
+      const btn = document.getElementById('btnTimer');
+      if (!btn) return;
       if (partidoActual.corriendo) {
         btn.innerText = '⏸ Pausar Tiempo';
         btn.className = 'flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/10 active:scale-[0.98]';
-        iniciarTimerLoop();
       } else {
-        btn.innerText = '▶ Reanudar Tiempo';
+        btn.innerText = partidoIniciado() ? '▶ Reanudar Tiempo' : '▶ Iniciar Tiempo';
         btn.className = 'flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-500/10 active:scale-[0.98]';
-        clearInterval(timerInterval);
-        timerInterval = null;
       }
-      guardarEstadoPartido();
+    }
+
+    function toggleTimer() {
+      if (soloLectura) return;
+      if (!partidoActual.corriendo) {
+        partidoActual.corriendo = true;
+        partidoActual.inicioTs = Date.now();
+        partidoActual.iniciado = true;
+        if (partidoActual.ultimoCorteSeg === null || partidoActual.ultimoCorteSeg === undefined) {
+          partidoActual.ultimoCorteSeg = num(partidoActual.segundos);
+        }
+      } else {
+        partidoActual.segundos = segundosActuales();
+        partidoActual.corriendo = false;
+        partidoActual.inicioTs = null;
+      }
+      guardarCampos(['corriendo', 'inicioTs', 'segundos', 'iniciado', 'ultimoCorteSeg']);
+      if (partidoActual.corriendo) iniciarTimerLoop(); else detenerTimerLoop();
+      actualizarBotonTimer();
+      actualizarRelojUI();
     }
 
     function iniciarTimerLoop() {
-      if (timerInterval) clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        if (partidoActual.corriendo) {
-          partidoActual.segundos++;
-          actualizarRelojUI();
-
-          if (partidoActual.segundos % 60 === 0) {
-            partidoActual.enCampo.forEach(id => {
-              partidoActual.tiemposJugadores[id] = (partidoActual.tiemposJugadores[id] || 0) + 1;
-            });
-            guardarEstadoPartido();
-          }
-        }
-      }, 1000);
+      if (timerInterval) return;
+      timerInterval = setInterval(actualizarRelojUI, 500);
+      pedirWakeLock();
+      actualizarRelojUI();
     }
 
+    function detenerTimerLoop() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      soltarWakeLock();
+    }
+
+    // Mantiene la pantalla encendida mientras el reloj corre
+    let wakeLock = null;
+    async function pedirWakeLock() {
+      try {
+        if ('wakeLock' in navigator && !wakeLock) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => { wakeLock = null; });
+        }
+      } catch (e) { wakeLock = null; }
+    }
+    function soltarWakeLock() {
+      try {
+        if (wakeLock) { wakeLock.release(); wakeLock = null; }
+      } catch (e) { wakeLock = null; }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        actualizarRelojUI();
+        if (partidoActual.corriendo) pedirWakeLock();
+      }
+    });
+
     function actualizarRelojUI() {
-      let m = String(Math.floor(partidoActual.segundos / 60)).padStart(2, '0');
-      let s = String(partidoActual.segundos % 60).padStart(2, '0');
+      const total = segundosActuales();
+      let m = String(Math.floor(total / 60)).padStart(2, '0');
+      let s = String(total % 60).padStart(2, '0');
       document.getElementById('cronometro').innerText = `${m}:${s}`;
     }
 
     function cambiarPeriodo() {
+      if (soloLectura) return;
       partidoActual.periodo = partidoActual.periodo === '1ª Parte' ? '2ª Parte' : '1ª Parte';
       document.getElementById('periodoTag').innerText = partidoActual.periodo;
-      guardarEstadoPartido();
+      guardarCampos(['periodo']);
     }
 
+    // ===== MINUTOS POR JUGADOR (segundos reales, no saltos de minuto) =====
+    function esPartidoActual(p) {
+      return p === partidoActual || p.esDirecto === true;
+    }
+
+    function segundosJugador(p, id) {
+      const seg = p.segJugadores || {};
+      const tiempos = p.tiemposJugadores || {};
+      let base = (seg[id] !== null && seg[id] !== undefined) ? num(seg[id]) : num(tiempos[id]) * 60;
+      if (p.enCampo && p.enCampo.includes(id)) {
+        const ahora = segundosActuales();
+        const corte = (p.ultimoCorteSeg === null || p.ultimoCorteSeg === undefined) ? ahora : num(p.ultimoCorteSeg);
+        base += Math.max(0, ahora - corte);
+      }
+      return base;
+    }
+
+    function minutosJugador(p, id) {
+      if (esPartidoActual(p)) return Math.round(segundosJugador(p, id) / 60);
+      return num(p.tiemposJugadores && p.tiemposJugadores[id]);
+    }
+
+    function sumarMinutosPartido(p, statsMins) {
+      const ids = new Set(Object.keys(p.tiemposJugadores || {}));
+      if (esPartidoActual(p)) {
+        (p.convocados || []).forEach(i => ids.add(String(i)));
+        (p.enCampo || []).forEach(i => ids.add(String(i)));
+      }
+      ids.forEach(id => {
+        if (statsMins[id] !== undefined) statsMins[id] += minutosJugador(p, Number(id));
+      });
+    }
+
+    // Reparte a los jugadores en campo el tiempo transcurrido desde el último corte.
+    // Debe llamarse SIEMPRE antes de cambiar quién está en el campo.
+    function consolidarMinutos() {
+      const p = partidoActual;
+      const ahora = segundosActuales();
+      const corte = (p.ultimoCorteSeg === null || p.ultimoCorteSeg === undefined) ? ahora : num(p.ultimoCorteSeg);
+      const delta = Math.max(0, ahora - corte);
+      p.enCampo.forEach(id => {
+        const base = (p.segJugadores[id] !== null && p.segJugadores[id] !== undefined)
+          ? num(p.segJugadores[id])
+          : num(p.tiemposJugadores[id]) * 60;
+        p.segJugadores[id] = base + delta;
+      });
+      p.ultimoCorteSeg = ahora;
+      Object.keys(p.segJugadores).forEach(id => {
+        p.tiemposJugadores[id] = Math.round(num(p.segJugadores[id]) / 60);
+      });
+    }
+
+    const CAMPOS_MINUTOS = ['segJugadores', 'tiemposJugadores', 'ultimoCorteSeg'];
+
+    // ===== GUARDADO: solo los campos que cambian + eventos de forma atómica =====
+    function guardarLocalPartido() {
+      try { localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual)); } catch (e) {}
+    }
+
+    function guardarCampos(campos) {
+      guardarLocalPartido();
+      const upd = {};
+      campos.forEach(c => {
+        const v = partidoActual[c];
+        upd[c] = (v === undefined) ? null : v;
+      });
+      db.ref('partidoActual').update(upd).catch(errorEscritura);
+    }
+
+    function guardarPartidoCompleto() {
+      guardarLocalPartido();
+      db.ref('partidoActual').set(JSON.parse(JSON.stringify(partidoActual)))
+        .catch(errorEscritura);
+    }
+
+    function anadirEvento(ev, camposExtra) {
+      partidoActual.eventos.unshift(ev);
+      recalcularMarcador(partidoActual);
+      guardarCampos(['golesFavor', 'golesRival'].concat(camposExtra || []));
+      db.ref('partidoActual/eventos').transaction(cur => {
+        const arr = aArray(cur);
+        if (!arr.some(e => e && e.id === ev.id)) arr.unshift(ev);
+        return arr;
+      }).catch(errorEscritura);
+    }
+
+    function quitarEventoRemoto(id) {
+      db.ref('partidoActual/eventos').transaction(cur => aArray(cur).filter(e => e && e.id !== id)).catch(errorEscritura);
+    }
+
+    // ===== CONVOCATORIA (trabaja sobre un borrador: Cancelar no cambia nada) =====
+    let borradorConv = [];
+    let borradorTit = [];
+
     function prepararPartidoModal() {
+      if (soloLectura) return;
       document.getElementById('cfgRival').value = partidoActual.rival;
       document.getElementById('cfgFecha').value = partidoActual.fecha;
       document.getElementById('cfgCondicion').value = partidoActual.condicion;
 
-      if (!partidoActual.convocados || partidoActual.convocados.length === 0) {
-        partidoActual.convocados = plantilla.map(j => j.id);
-      }
+      borradorConv = (partidoActual.convocados && partidoActual.convocados.length > 0)
+        ? [...partidoActual.convocados]
+        : idsActivos();
+      borradorTit = [...partidoActual.titulares];
+      const iniciado = partidoIniciado();
 
       let cont = document.getElementById('selectorConvocatoria');
       cont.innerHTML = '';
 
-      plantilla.forEach(j => {
-        let esConvocado = partidoActual.convocados.includes(j.id);
-        let esTitular = partidoActual.titulares.includes(j.id);
+      plantilla.filter(j => j.activo !== false).forEach(j => {
+        let esConvocado = borradorConv.includes(j.id);
+        let esTitular = borradorTit.includes(j.id);
+        let titDisabled = !esConvocado || iniciado;
 
         let div = document.createElement('div');
         div.className = 'flex items-center justify-between p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs';
         div.innerHTML = `
-          <div class="font-bold text-slate-200">#${j.dorsal} - ${j.nombre}</div>
+          <div class="font-bold text-slate-200">#${esc(j.dorsal)} - ${esc(j.nombre)}</div>
           <div class="flex gap-3">
             <label class="flex items-center gap-1 cursor-pointer">
-              <input type="checkbox" id="chkConv_${j.id}" onchange="toggleConv(${j.id}, this)" ${esConvocado ? 'checked' : ''} class="rounded accent-emerald-500">
+              <input type="checkbox" id="chkConv_${Number(j.id)}" onchange="toggleConv(${Number(j.id)}, this)" ${esConvocado ? 'checked' : ''} class="rounded accent-emerald-500">
               <span class="text-slate-400">Conv.</span>
             </label>
-            <label class="flex items-center gap-1 cursor-pointer ${esConvocado ? '' : 'opacity-40'}">
-              <input type="checkbox" id="chkTit_${j.id}" onchange="toggleTit(${j.id}, this)" ${esTitular ? 'checked' : ''} ${esConvocado ? '' : 'disabled'} class="rounded accent-emerald-500">
+            <label class="flex items-center gap-1 cursor-pointer ${titDisabled ? 'opacity-40' : ''}">
+              <input type="checkbox" id="chkTit_${Number(j.id)}" onchange="toggleTit(${Number(j.id)}, this)" ${esTitular ? 'checked' : ''} ${titDisabled ? 'disabled' : ''} class="rounded accent-emerald-500">
               <span class="text-emerald-400 font-bold">11 Titular</span>
             </label>
           </div>
@@ -589,12 +912,18 @@
 
     function toggleConv(id, checkbox) {
       if(checkbox.checked) {
-        if(!partidoActual.convocados.includes(id)) partidoActual.convocados.push(id);
-        document.getElementById(`chkTit_${id}`).disabled = false;
-        document.getElementById(`chkTit_${id}`).parentElement.classList.remove('opacity-40');
+        if(!borradorConv.includes(id)) borradorConv.push(id);
+        let chk = document.getElementById(`chkTit_${id}`);
+        chk.disabled = partidoIniciado();
+        if (!chk.disabled) chk.parentElement.classList.remove('opacity-40');
       } else {
-        partidoActual.convocados = partidoActual.convocados.filter(x => x !== id);
-        partidoActual.titulares = partidoActual.titulares.filter(x => x !== id);
+        if (partidoIniciado() && partidoActual.enCampo.includes(id)) {
+          alert("No puedes quitar de la convocatoria a un jugador que está en el campo. Haz primero un cambio.");
+          checkbox.checked = true;
+          return;
+        }
+        borradorConv = borradorConv.filter(x => x !== id);
+        borradorTit = borradorTit.filter(x => x !== id);
         let chk = document.getElementById(`chkTit_${id}`);
         chk.checked = false;
         chk.disabled = true;
@@ -605,39 +934,54 @@
 
     function toggleTit(id, checkbox) {
       if(checkbox.checked) {
-        if(partidoActual.titulares.length >= 11) {
+        if(borradorTit.length >= 11) {
           alert("Solo puedes seleccionar un máximo de 11 titulares.");
           checkbox.checked = false;
           return;
         }
-        if(!partidoActual.titulares.includes(id)) partidoActual.titulares.push(id);
+        if(!borradorTit.includes(id)) borradorTit.push(id);
       } else {
-        partidoActual.titulares = partidoActual.titulares.filter(x => x !== id);
+        borradorTit = borradorTit.filter(x => x !== id);
       }
       actualizarContadorConvocados();
     }
 
     function actualizarContadorConvocados() {
-      document.getElementById('contadorConvocados').innerText = `${partidoActual.convocados.length} conv. | ${partidoActual.titulares.length}/11 tit.`;
+      document.getElementById('contadorConvocados').innerText = `${borradorConv.length} conv. | ${borradorTit.length}/11 tit.`;
     }
 
     function guardarConfiguracionPartido() {
+      if (soloLectura) return;
+      const iniciado = partidoIniciado();
       partidoActual.rival = document.getElementById('cfgRival').value.trim() || 'Rival';
       partidoActual.fecha = document.getElementById('cfgFecha').value;
       partidoActual.condicion = document.getElementById('cfgCondicion').value;
-      partidoActual.enCampo = [...partidoActual.titulares];
-      partidoActual.expulsados = [];
-      
+      partidoActual.convocados = [...borradorConv];
+
+      const campos = ['rival', 'fecha', 'condicion', 'convocados'];
+
+      if (!iniciado) {
+        // Solo antes del pitido inicial se fija quién sale en el campo
+        partidoActual.titulares = [...borradorTit];
+        partidoActual.enCampo = [...borradorTit];
+        partidoActual.expulsados = [];
+        partidoActual.ultimoCorteSeg = num(partidoActual.segundos);
+        campos.push('titulares', 'enCampo', 'expulsados', 'ultimoCorteSeg');
+      }
+
       partidoActual.convocados.forEach(id => {
         if(partidoActual.tiemposJugadores[id] === undefined) partidoActual.tiemposJugadores[id] = 0;
+        if(partidoActual.segJugadores[id] === undefined) partidoActual.segJugadores[id] = 0;
       });
+      campos.push('tiemposJugadores', 'segJugadores');
 
       cerrarModal('modalConvocatoria');
+      guardarCampos(campos);
       renderizarPartidoActual();
-      guardarEstadoPartido();
     }
 
     function abrirModalGol() {
+      if (soloLectura) return;
       llenarSelectJugadores('selGoleador', partidoActual.enCampo);
       llenarSelectJugadores('selAsistente', partidoActual.enCampo, true);
       document.getElementById('selTipoGol').value = 'Jugada';
@@ -645,7 +989,8 @@
     }
 
     function confirmarGol() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      if (soloLectura) return;
+      let min = minutoActual();
       let golId = parseInt(document.getElementById('selGoleador').value);
       let asistId = parseInt(document.getElementById('selAsistente').value);
       let tipoGol = document.getElementById('selTipoGol').value;
@@ -654,10 +999,13 @@
         alert("Selecciona al menos al autor del gol.");
         return;
       }
+      if(asistId && asistId === golId) {
+        alert("El asistente no puede ser el mismo jugador que el goleador.");
+        return;
+      }
 
       let goleador = plantilla.find(j => j.id === golId);
       let asistente = plantilla.find(j => j.id === asistId);
-      partidoActual.golesFavor++;
 
       let detalleTipo = '';
       if (tipoGol === 'Penalti') detalleTipo = ' (Penalti)';
@@ -671,43 +1019,43 @@
         jugadorId: golId,
         asistenteId: asistId || null,
         tipoGol: tipoGol,
-        texto: `<b>¡GOL!</b> #${goleador ? goleador.dorsal : ''} ${goleador ? goleador.nombre : ''}${detalleTipo}` + (asistente ? ` (Asistencia: #${asistente.dorsal} ${asistente.nombre})` : '')
+        texto: `<b>¡GOL!</b> #${goleador ? esc(goleador.dorsal) : ''} ${goleador ? esc(goleador.nombre) : ''}${detalleTipo}` + (asistente ? ` (Asistencia: #${esc(asistente.dorsal)} ${esc(asistente.nombre)})` : '')
       };
 
-      partidoActual.eventos.unshift(evento);
       cerrarModal('modalGol');
+      anadirEvento(evento);
       renderizarPartidoActual();
-      guardarEstadoPartido();
     }
 
     function registrarGolRival() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
-      partidoActual.golesRival++;
+      if (soloLectura) return;
+      let min = minutoActual();
 
       let evento = {
         id: Date.now(),
         tipo: 'GOL_RIVAL',
         minuto: min,
         periodo: partidoActual.periodo,
-        texto: `Gol del ${partidoActual.rival || 'equipo rival'}`
+        texto: `Gol del ${esc(partidoActual.rival || 'equipo rival')}`
       };
 
-      partidoActual.eventos.unshift(evento);
+      anadirEvento(evento);
       renderizarPartidoActual();
-      guardarEstadoPartido();
     }
 
     function abrirModalSustitucion() {
+      if (soloLectura) return;
       let disponiblesEnCampo = partidoActual.enCampo.filter(id => !partidoActual.expulsados.includes(id));
       let banquillo = partidoActual.convocados.filter(id => !partidoActual.enCampo.includes(id) && !partidoActual.expulsados.includes(id));
-      
+
       llenarSelectJugadores('selSale', disponiblesEnCampo);
       llenarSelectJugadores('selEntra', banquillo);
       document.getElementById('modalSustitucion').classList.remove('hidden');
     }
 
     function confirmarSustitucion() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      if (soloLectura) return;
+      let min = minutoActual();
       let saleId = parseInt(document.getElementById('selSale').value);
       let entraId = parseInt(document.getElementById('selEntra').value);
 
@@ -718,7 +1066,12 @@
 
       let sale = plantilla.find(j => j.id === saleId);
       let entra = plantilla.find(j => j.id === entraId);
+      if(!sale || !entra) {
+        alert("No se encuentra alguno de los jugadores seleccionados.");
+        return;
+      }
 
+      consolidarMinutos();
       partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== saleId);
       partidoActual.enCampo.push(entraId);
 
@@ -727,16 +1080,18 @@
         tipo: 'CAMBIO',
         minuto: min,
         periodo: partidoActual.periodo,
-        texto: `<b>Sustitución:</b> Entra #${entra.dorsal} ${entra.nombre} 🟢 / Sale #${sale.dorsal} ${sale.nombre} 🔴`
+        saleId: saleId,
+        entraId: entraId,
+        texto: `<b>Sustitución:</b> Entra #${esc(entra.dorsal)} ${esc(entra.nombre)} 🟢 / Sale #${esc(sale.dorsal)} ${esc(sale.nombre)} 🔴`
       };
 
-      partidoActual.eventos.unshift(evento);
       cerrarModal('modalSustitucion');
+      anadirEvento(evento, ['enCampo'].concat(CAMPOS_MINUTOS));
       renderizarPartidoActual();
-      guardarEstadoPartido();
     }
 
     function abrirModalTarjeta() {
+      if (soloLectura) return;
       document.getElementById('txtTarjetaComentario').value = '';
       let noExpulsados = partidoActual.convocados.filter(id => !partidoActual.expulsados.includes(id));
       llenarSelectJugadores('selTarjetaJugador', noExpulsados);
@@ -744,7 +1099,8 @@
     }
 
     function confirmarTarjeta() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      if (soloLectura) return;
+      let min = minutoActual();
       let jugId = parseInt(document.getElementById('selTarjetaJugador').value);
       let tipo = document.getElementById('selTipoTarjeta').value;
       let comentario = document.getElementById('txtTarjetaComentario').value.trim();
@@ -755,49 +1111,63 @@
         return;
       }
 
-      let textoComentario = comentario ? ` (${comentario})` : '';
+      let textoComentario = comentario ? ` (${esc(comentario)})` : '';
+      let dorsalTxt = jug ? esc(jug.dorsal) : '';
+      let nombreTxt = jug ? esc(jug.nombre) : '';
       let amarillasPrevias = partidoActual.eventos.filter(e => e.tipo === 'TARJETA' && e.jugadorId === jugId && e.subtipo === 'Amarilla').length;
+      let estabaEnCampo = partidoActual.enCampo.includes(jugId);
+      let aviso = '';
+      let expulsion = false;
+      let evento;
 
       if (tipo === 'Amarilla' && amarillasPrevias >= 1) {
-        let evento = {
+        expulsion = true;
+        evento = {
           id: Date.now(),
           tipo: 'TARJETA',
           subtipo: 'Roja',
+          segundaAmarilla: true,
+          estabaEnCampo: estabaEnCampo,
           minuto: min,
           periodo: partidoActual.periodo,
           jugadorId: jugId,
-          texto: `<b>2ª Amarilla / Roja 🟥:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}${textoComentario}`
+          texto: `<b>2ª Amarilla / Roja 🟥:</b> #${dorsalTxt} ${nombreTxt}${textoComentario}`
         };
-        partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
-        if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
-        partidoActual.eventos.unshift(evento);
-        
-        alert(`⚠ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto su segunda tarjeta amarilla. ¡Tiene que salir del campo (expulsado)!`);
+        aviso = `⚠ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto su segunda tarjeta amarilla. ¡Tiene que salir del campo (expulsado)!`;
       } else {
         if (tipo === 'Roja') {
-          partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
-          if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
-          alert(`⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto tarjeta roja directa y debe abandonar el campo.`);
+          expulsion = true;
+          aviso = `⚠️ ¡ATENCIÓN! #${jug ? jug.dorsal : ''} ${jug ? jug.nombre || '' : ''} ha visto tarjeta roja directa y debe abandonar el campo.`;
         }
-
-        let evento = {
+        evento = {
           id: Date.now(),
           tipo: 'TARJETA',
           subtipo: tipo,
+          estabaEnCampo: estabaEnCampo,
           minuto: min,
           periodo: partidoActual.periodo,
           jugadorId: jugId,
-          texto: `<b>Tarjeta ${tipo}:</b> #${jug ? jug.dorsal : ''} ${jug ? jug.nombre : ''}${textoComentario}`
+          texto: `<b>Tarjeta ${tipo}:</b> #${dorsalTxt} ${nombreTxt}${textoComentario}`
         };
-        partidoActual.eventos.unshift(evento);
+      }
+
+      let extra = [];
+      if (expulsion) {
+        consolidarMinutos();
+        partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== jugId);
+        if(!partidoActual.expulsados.includes(jugId)) partidoActual.expulsados.push(jugId);
+        extra = ['enCampo', 'expulsados'].concat(CAMPOS_MINUTOS);
       }
 
       cerrarModal('modalTarjeta');
+      anadirEvento(evento, extra);
       renderizarPartidoActual();
-      guardarEstadoPartido();
+      // El aviso se muestra después de actualizar la pantalla (el reloj ya no depende de los alert)
+      if (aviso) setTimeout(() => alert(aviso), 50);
     }
 
     function abrirModalNota() {
+      if (soloLectura) return;
       document.getElementById('txtNota').value = '';
       let noExpulsados = partidoActual.convocados.filter(id => !partidoActual.expulsados.includes(id));
       llenarSelectJugadores('selNotaJugador', noExpulsados, true);
@@ -810,7 +1180,8 @@
     }
 
     function confirmarNota() {
-      let min = Math.floor(partidoActual.segundos / 60) || 1;
+      if (soloLectura) return;
+      let min = minutoActual();
       let jugId = parseInt(document.getElementById('selNotaJugador').value);
       let jug = plantilla.find(j => j.id === jugId);
       let nota = document.getElementById('txtNota').value.trim();
@@ -823,13 +1194,12 @@
         tipo: 'NOTA',
         minuto: min,
         periodo: partidoActual.periodo,
-        texto: `<b>Anotación:</b> ${cabeceraJugador}${nota}`
+        texto: `<b>Anotación:</b> ${esc(cabeceraJugador)}${esc(nota)}`
       };
 
-      partidoActual.eventos.unshift(evento);
       cerrarModal('modalNota');
+      anadirEvento(evento);
       renderizarPartidoActual();
-      guardarEstadoPartido();
     }
 
     function llenarSelectJugadores(elementId, listaIds, opcionVacia = false) {
@@ -842,7 +1212,7 @@
 
         let j = plantilla.find(x => x.id === id);
         if(j) {
-          sel.innerHTML += `<option value="${j.id}">#${j.dorsal} - ${j.nombre}</option>`;
+          sel.innerHTML += `<option value="${Number(j.id)}">#${esc(j.dorsal)} - ${esc(j.nombre)}</option>`;
         }
       });
     }
@@ -869,6 +1239,8 @@
       }
 
       actualizarRelojUI();
+      document.getElementById('periodoTag').innerText = partidoActual.periodo;
+      actualizarBotonTimer();
 
       let feed = document.getElementById('feedEventos');
       feed.innerHTML = '';
@@ -890,19 +1262,49 @@
         div.className = `p-3 rounded-2xl border-l-4 ${color} text-xs flex justify-between items-center shadow-sm`;
         div.innerHTML = `
           <div>
-            <span class="text-slate-400 font-mono font-bold">[${ev.minuto}' ${ev.periodo}]</span>
-            <span class="ml-1 text-slate-200">${icono} ${ev.texto}</span>
+            <span class="text-slate-400 font-mono font-bold">[${esc(ev.minuto)}' ${esc(ev.periodo)}]</span>
+            <span class="ml-1 text-slate-200">${icono} ${textoEventoSeguro(ev.texto)}</span>
           </div>
-          <button onclick="eliminarEvento(${ev.id})" class="text-slate-500 hover:text-rose-400 p-1 font-bold">✕</button>
+          ${soloLectura ? '' : `<button onclick="eliminarEvento(${Number(ev.id)})" class="text-slate-500 hover:text-rose-400 p-1 font-bold">✕</button>`}
         `;
         feed.appendChild(div);
       });
     }
 
     function eliminarEvento(id) {
+      if (soloLectura) return;
+      const ev = partidoActual.eventos.find(e => e.id === id);
+      if (!ev) return;
       partidoActual.eventos = partidoActual.eventos.filter(e => e.id !== id);
+      let campos = [];
+
+      // Deshacer la expulsión si se borra la tarjeta roja
+      if (ev.tipo === 'TARJETA' && subtipoTarjeta(ev) === 'Roja' && ev.jugadorId) {
+        const sigueRoja = partidoActual.eventos.some(e => e.tipo === 'TARJETA' && subtipoTarjeta(e) === 'Roja' && e.jugadorId === ev.jugadorId);
+        if (!sigueRoja && partidoActual.expulsados.includes(ev.jugadorId)) {
+          consolidarMinutos();
+          partidoActual.expulsados = partidoActual.expulsados.filter(x => x !== ev.jugadorId);
+          if (ev.estabaEnCampo !== false && !partidoActual.enCampo.includes(ev.jugadorId)) {
+            partidoActual.enCampo.push(ev.jugadorId);
+          }
+          campos = campos.concat(['enCampo', 'expulsados'], CAMPOS_MINUTOS);
+        }
+      }
+
+      // Deshacer el cambio si se borra una sustitución (solo las registradas con jugadores identificados)
+      if (ev.tipo === 'CAMBIO' && ev.saleId && ev.entraId) {
+        if (partidoActual.enCampo.includes(ev.entraId) && !partidoActual.enCampo.includes(ev.saleId) && !partidoActual.expulsados.includes(ev.saleId)) {
+          consolidarMinutos();
+          partidoActual.enCampo = partidoActual.enCampo.filter(x => x !== ev.entraId);
+          partidoActual.enCampo.push(ev.saleId);
+          campos = campos.concat(['enCampo'], CAMPOS_MINUTOS);
+        }
+      }
+
+      recalcularMarcador(partidoActual);
+      guardarCampos(['golesFavor', 'golesRival'].concat(campos));
+      quitarEventoRemoto(id);
       renderizarPartidoActual();
-      guardarEstadoPartido();
     }
 
     function renderizarMinutos() {
@@ -915,10 +1317,10 @@
       } else {
         partidoActual.convocados.forEach(id => {
           let j = plantilla.find(x => x.id === id);
-          let nombreJugador = j ? j.nombre : 'Jugador';
-          if(filtro && !nombreJugador.toLowerCase().includes(filtro)) return;
+          let nombreJugador = esc(j ? j.nombre : 'Jugador');
+          if(filtro && !(j ? j.nombre : 'Jugador').toLowerCase().includes(filtro)) return;
 
-          let mins = partidoActual.tiemposJugadores[id] || 0;
+          let mins = minutosJugador(partidoActual, id);
           let enC = partidoActual.enCampo.includes(id);
           let expulsado = partidoActual.expulsados && partidoActual.expulsados.includes(id);
 
@@ -936,7 +1338,7 @@
           div.className = 'flex items-center justify-between p-3 bg-slate-900 rounded-2xl border border-slate-800 text-xs shadow-sm';
           div.innerHTML = `
             <div class="flex items-center gap-2.5">
-              <span class="font-bold text-slate-500">#${j ? j.dorsal : ''}</span>
+              <span class="font-bold text-slate-500">#${j ? esc(j.dorsal) : ''}</span>
               <span class="font-semibold text-slate-200">${nombreJugador}</span>
             </div>
             <div class="flex items-center gap-3">
@@ -960,7 +1362,7 @@
 
       historialPartidos.forEach(p => {
         let esLoc = p.condicion === 'Local';
-        let rivalNom = p.rival || 'Rival';
+        let rivalNom = esc(p.rival || 'Rival');
         let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
         let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
         let convocadosList = p.convocados || [];
@@ -976,10 +1378,10 @@
 
         let filasJugadoresHTML = convocadosList.map(id => {
           let j = plantilla.find(x => x.id === id);
-          let mins = (p.tiemposJugadores && p.tiemposJugadores[id]) || 0;
+          let mins = minutosJugador(p, id);
           return `
             <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0 text-xs">
-              <span class="text-slate-300">#${j ? j.dorsal : ''} ${j ? j.nombre : 'Jugador'}</span>
+              <span class="text-slate-300">#${j ? esc(j.dorsal) : ''} ${j ? esc(j.nombre) : 'Jugador'}</span>
               <span class="font-mono text-emerald-400 font-bold">${mins} min</span>
             </div>
           `;
@@ -989,12 +1391,12 @@
         card.className = 'bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2 relative shadow-lg';
         card.innerHTML = `
           <div class="flex justify-between items-center border-b border-slate-800 pb-2 pr-14">
-            <span class="font-bold text-white text-xs">${parteIzquierda} vs ${parteDerecha} (${p.condicion})</span>
-            <span class="text-emerald-400 font-semibold text-xs">${p.fecha}</span>
+            <span class="font-bold text-white text-xs">${parteIzquierda} vs ${parteDerecha} (${esc(p.condicion)})</span>
+            <span class="text-emerald-400 font-semibold text-xs">${esc(p.fecha)}</span>
           </div>
           <div class="absolute top-3 right-3 flex items-center gap-1">
-            <button onclick="copiarMinutosPartidoWhatsApp(${p.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar minutos">📲</button>
-            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑</button>
+            <button onclick="copiarMinutosPartidoWhatsApp(${Number(p.id)})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar minutos">📲</button>
+            ${soloLectura ? '' : `<button onclick="eliminarPartidoHistorial(${Number(p.id)})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑</button>`}
           </div>
           <div class="pt-1 space-y-1">${filasJugadoresHTML}</div>
         `;
@@ -1022,11 +1424,7 @@
       });
 
       todosLosPartidos.forEach(p => {
-        if (p.tiemposJugadores) {
-          Object.keys(p.tiemposJugadores).forEach(id => {
-            if (statsMins[id] !== undefined) statsMins[id] += p.tiemposJugadores[id] || 0;
-          });
-        }
+        sumarMinutosPartido(p, statsMins);
         if (p.eventos) {
           p.eventos.forEach(ev => {
             if (ev.tipo === 'GOL') {
@@ -1035,11 +1433,11 @@
             }
             if (ev.tipo === 'TARJETA') {
               if (ev.jugadorId && statsTarjetas[ev.jugadorId]) {
-                if (ev.subtipo === 'Amarilla' || (ev.texto && ev.texto.includes('Amarilla'))) {
+                if (subtipoTarjeta(ev) === 'Amarilla') {
                   statsTarjetas[ev.jugadorId].amarillas++;
                   statsTarjetas[ev.jugadorId].total++;
                 }
-                if (ev.subtipo === 'Roja' || (ev.texto && ev.texto.includes('Roja'))) {
+                if (subtipoTarjeta(ev) === 'Roja') {
                   statsTarjetas[ev.jugadorId].rojas++;
                   statsTarjetas[ev.jugadorId].total++;
                 }
@@ -1059,7 +1457,7 @@
         idsArray.forEach((id, index) => {
           let j = plantilla.find(x => x.id == id);
           let val = statsObj[id] || 0;
-          let nombre = j ? j.nombre : '-';
+          let nombre = esc(j ? j.nombre : '-');
           if (val === 0 && index > 0) return;
           html += `
             <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
@@ -1076,7 +1474,7 @@
         idsArray.forEach((id, index) => {
           let j = plantilla.find(x => x.id == id);
           let item = statsObj[id] || { amarillas: 0, rojas: 0, total: 0 };
-          let nombre = j ? j.nombre : '-';
+          let nombre = esc(j ? j.nombre : '-');
           if (item.total === 0 && index > 0) return;
           html += `
             <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
@@ -1132,7 +1530,7 @@
       plantilla.forEach(j => {
         let opt = document.createElement('option');
         opt.value = j.id;
-        opt.innerText = `#${j.dorsal} - ${j.nombre}`;
+        opt.innerText = `#${j.dorsal} - ${j.nombre}${j.activo === false ? ' (baja)' : ''}`;
         sel.appendChild(opt);
       });
       if(actual) sel.value = actual;
@@ -1165,7 +1563,7 @@
         let esTit = p.titulares && p.titulares.includes(jugId);
         if(esTit) titularidades++;
 
-        let mins = (p.tiemposJugadores && p.tiemposJugadores[jugId]) || 0;
+        let mins = minutosJugador(p, jugId);
         minutosTotales += mins;
 
         if(p.eventos) {
@@ -1173,14 +1571,14 @@
             if(ev.tipo === 'GOL' && ev.jugadorId === jugId) { goles++; }
             if(ev.tipo === 'GOL' && ev.asistenteId === jugId) { asistencias++; }
             if(ev.tipo === 'TARJETA' && ev.jugadorId === jugId) {
-              if(ev.subtipo === 'Amarilla' || (ev.texto && ev.texto.includes('Amarilla'))) { amarillas++; }
-              if(ev.subtipo === 'Roja' || (ev.texto && ev.texto.includes('Roja'))) { rojas++; }
+              if(subtipoTarjeta(ev) === 'Amarilla') { amarillas++; }
+              if(subtipoTarjeta(ev) === 'Roja') { rojas++; }
             }
           });
         }
 
         let esLoc = p.condicion === 'Local';
-        let rivalNom = p.rival || 'Rival';
+        let rivalNom = esc(p.rival || 'Rival');
         let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
         let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
 
@@ -1191,7 +1589,7 @@
                 ${parteIzquierda} vs ${parteDerecha}
                 ${p.esDirecto ? '<span class="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded-full font-extrabold border border-emerald-800/50">EN DIRECTO</span>' : ''}
               </div>
-              <div class="text-[11px] text-slate-400 mt-0.5">${p.fecha} • ${esTit ? 'Titular' : 'Banquillo'}</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">${esc(p.fecha)} • ${esTit ? 'Titular' : 'Banquillo'}</div>
             </div>
             <div class="text-right font-mono font-black text-emerald-400 text-sm">${mins} min</div>
           </div>
@@ -1201,8 +1599,8 @@
       cont.innerHTML = `
         <div class="bg-gradient-to-r from-slate-900 to-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center shadow-lg">
           <div>
-            <h3 class="text-base font-extrabold text-white">${jug.nombre}</h3>
-            <span class="text-xs font-bold text-emerald-400">Dorsal #${jug.dorsal}</span>
+            <h3 class="text-base font-extrabold text-white">${esc(jug.nombre)}</h3>
+            <span class="text-xs font-bold text-emerald-400">Dorsal #${esc(jug.dorsal)}</span>
           </div>
           <div class="text-3xl">🏃</div>
         </div>
@@ -1219,11 +1617,6 @@
       `;
     }
 
-    function guardarEstadoPartido() {
-      localStorage.setItem('futbol_partido_activo', JSON.stringify(partidoActual));
-      db.ref('partidoActual').set(partidoActual);
-    }
-
     function guardarPlantilla() {
       localStorage.setItem('futbol_plantilla', JSON.stringify(plantilla));
       db.ref('plantilla').set(plantilla);
@@ -1233,47 +1626,67 @@
       let cont = document.getElementById('listaPlantilla');
       if(!cont) return;
       cont.innerHTML = '';
-      plantilla.forEach(j => {
+      plantilla.filter(j => j.activo !== false).forEach(j => {
         let div = document.createElement('div');
         div.className = 'flex justify-between items-center bg-slate-900 p-3 rounded-2xl border border-slate-800 text-xs shadow-sm';
-        div.innerHTML = `<div><span class="font-extrabold text-emerald-400">#${j.dorsal}</span> - <span class="font-semibold text-slate-200">${j.nombre}</span></div><button onclick="borrarJugador(${j.id})" class="text-slate-500 hover:text-rose-400 text-xs transition">Eliminar</button>`;
+        div.innerHTML = `<div><span class="font-extrabold text-emerald-400">#${esc(j.dorsal)}</span> - <span class="font-semibold text-slate-200">${esc(j.nombre)}</span></div>${soloLectura ? '' : `<button onclick="borrarJugador(${Number(j.id)})" class="text-slate-500 hover:text-rose-400 text-xs transition">Eliminar</button>`}`;
         cont.appendChild(div);
       });
     }
 
     function agregarJugadorManual() {
+      if (soloLectura) return;
       let nom = prompt("Nombre del nuevo jugador:");
       if(!nom) return;
+      nom = nom.trim();
+      if(!nom) return;
       let dor = prompt("Dorsal:");
-      plantilla.push({ id: Date.now(), dorsal: parseInt(dor) || 0, nombre: nom });
+      let dorsalNum = parseInt(dor) || 0;
+      if(dorsalNum > 0 && plantilla.some(x => x.activo !== false && x.dorsal === dorsalNum)) {
+        alert("Ya existe un jugador con el dorsal " + dorsalNum + ".");
+        return;
+      }
+      plantilla.push({ id: Date.now(), dorsal: dorsalNum, nombre: nom });
       guardarPlantilla();
       renderizarPlantilla();
       cargarSelectorJugadoresFicha();
     }
 
     function borrarJugador(id) {
-      plantilla = plantilla.filter(j => j.id !== id);
+      if (soloLectura) return;
+      const jug = plantilla.find(j => j.id === id);
+      if (jug) jug.activo = false; // baja lógica: el historial sigue mostrando su nombre
       guardarPlantilla();
       renderizarPlantilla();
       cargarSelectorJugadoresFicha();
     }
 
     function finalizarPartido() {
+      if (soloLectura) return;
       if(!confirm("¿Deseas dar por finalizado este partido y guardarlo en el historial?")) return;
-      clearInterval(timerInterval);
-      timerInterval = null;
-      partidoActual.corriendo = false;
+      consolidarMinutos();
+      if (partidoActual.corriendo) {
+        partidoActual.segundos = segundosActuales();
+        partidoActual.corriendo = false;
+        partidoActual.inicioTs = null;
+      }
+      detenerTimerLoop();
+      recalcularMarcador(partidoActual);
 
-      historialPartidos.unshift({...partidoActual, id: Date.now()});
-      localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
-      db.ref('historialPartidos').set(historialPartidos);
+      const entrada = JSON.parse(JSON.stringify({...partidoActual, id: Date.now()}));
+      historialPartidos.unshift(entrada);
+      try { localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos)); } catch (e) {}
+      db.ref('historialPartidos').transaction(cur => {
+        const arr = aArray(cur);
+        if (!arr.some(e => e && e.id === entrada.id)) arr.unshift(entrada);
+        return arr;
+      }).catch(errorEscritura);
 
       partidoActual = crearEstadoPartido();
-      guardarEstadoPartido();
+      guardarPartidoCompleto();
 
-      document.getElementById('btnTimer').innerText = '▶️ Iniciar Tiempo';
-      document.getElementById('btnTimer').className = 'flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-500/10 active:scale-[0.98]';
       document.getElementById('periodoTag').innerText = '1ª Parte';
+      actualizarBotonTimer();
 
       renderizarPartidoActual();
       renderizarHistorial();
@@ -1294,26 +1707,26 @@
         return;
       }
 
-      if(btnVaciar) btnVaciar.classList.remove('hidden');
+      if(btnVaciar && !soloLectura) btnVaciar.classList.remove('hidden');
 
       historialPartidos.forEach(p => {
         let div = document.createElement('div');
         div.className = 'bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2.5 text-xs relative shadow-lg';
         let esLoc = p.condicion === 'Local';
-        let rivalNom = p.rival || 'Rival';
+        let rivalNom = esc(p.rival || 'Rival');
         let parteIzquierda = esLoc ? NOMBRE_MI_EQUIPO : rivalNom;
         let parteDerecha = esLoc ? rivalNom : NOMBRE_MI_EQUIPO;
         let marcadorOrdenado = esLoc ? `${p.golesFavor} - ${p.golesRival}` : `${p.golesRival} - ${p.golesFavor}`;
-        let listaEventos = p.eventos ? p.eventos.map(ev => `<li class="text-[11px] text-slate-400">• [Min ${ev.minuto}'] ${ev.texto}</li>`).join('') : '';
+        let listaEventos = p.eventos ? p.eventos.map(ev => `<li class="text-[11px] text-slate-400">• [Min ${esc(ev.minuto)}'] ${textoEventoSeguro(ev.texto)}</li>`).join('') : '';
 
         div.innerHTML = `
           <div class="flex justify-between items-center border-b border-slate-800 pb-2 pr-14">
-            <span class="font-extrabold text-white">${parteIzquierda} vs ${parteDerecha} (${p.condicion})</span>
-            <span class="text-emerald-400 font-bold">${p.fecha}</span>
+            <span class="font-extrabold text-white">${parteIzquierda} vs ${parteDerecha} (${esc(p.condicion)})</span>
+            <span class="text-emerald-400 font-bold">${esc(p.fecha)}</span>
           </div>
           <div class="absolute top-3 right-3 flex items-center gap-1">
-            <button onclick="copiarReportePartidoHistorialWhatsApp(${p.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲</button>
-            <button onclick="eliminarPartidoHistorial(${p.id})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑</button>
+            <button onclick="copiarReportePartidoHistorialWhatsApp(${Number(p.id)})" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲</button>
+            ${soloLectura ? '' : `<button onclick="eliminarPartidoHistorial(${Number(p.id)})" class="text-slate-500 hover:text-rose-400 p-1.5 text-xs" title="Borrar">🗑</button>`}
           </div>
           <div class="flex justify-between items-center text-xs font-bold text-white bg-slate-950 p-2.5 rounded-xl border border-slate-800/80"><span>Resultado Final:</span><span class="text-emerald-400 font-mono text-sm">${marcadorOrdenado}</span></div>
           <div class="pt-1"><span class="text-slate-400 font-bold block mb-1 uppercase text-[10px]">Eventos:</span><ul class="space-y-1 pl-1 max-h-36 overflow-y-auto">${listaEventos}</ul></div>
@@ -1323,16 +1736,18 @@
     }
 
     function eliminarPartidoHistorial(idPartido) {
+      if (soloLectura) return;
       if(!confirm("¿Estás seguro de que quieres borrar este partido?")) return;
       historialPartidos = historialPartidos.filter(p => p.id !== idPartido);
-      localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
-      db.ref('historialPartidos').set(historialPartidos);
+      try { localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos)); } catch (e) {}
+      db.ref('historialPartidos').transaction(cur => aArray(cur).filter(p => p && p.id !== idPartido)).catch(errorEscritura);
       renderizarHistorial();
       renderizarMinutos();
       renderizarMetricasEquipoGlobal();
     }
 
     function vaciarTodoElHistorial() {
+      if (soloLectura) return;
       if(!confirm("¿Borrar TODOS los partidos del historial?")) return;
       historialPartidos = [];
       localStorage.setItem('futbol_historial', JSON.stringify(historialPartidos));
@@ -1343,12 +1758,12 @@
     }
 
     function formatearEventoParaWhatsApp(ev) {
-      let textoLimpio = ev.texto.replace(/<[^>]*>/g, '');
+      let textoLimpio = textoPlano(ev.texto);
       let icono = '';
       if (ev.tipo === 'GOL' || ev.tipo === 'GOL_RIVAL') {
         icono = '⚽ ';
       } else if (ev.tipo === 'TARJETA') {
-        if (ev.subtipo === 'Roja' || (ev.texto && ev.texto.includes('Roja'))) {
+        if (subtipoTarjeta(ev) === 'Roja') {
           icono = '🟥 ';
         } else {
           icono = '🟨 ';
@@ -1381,7 +1796,7 @@
       let txt = `⏱️ *MINUTOS*\n🆚 ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}\n\n`;
       partidoActual.convocados.forEach(id => {
         let j = plantilla.find(x => x.id === id);
-        let mins = partidoActual.tiemposJugadores[id] || 0;
+        let mins = minutosJugador(partidoActual, id);
         txt += `• #${j ? j.dorsal : ''} ${j ? j.nombre : ''}: *${mins} min*\n`;
       });
       copiarAlPortapapeles(txt);
@@ -1393,9 +1808,9 @@
       let esLoc = p.condicion === 'Local';
       let rivalNom = p.rival || 'Rival';
       let txt = `⏱ *MINUTOS (Pasado)*\n🆚 ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}\n\n`;
-      p.convocados.forEach(id => {
+      (p.convocados || []).forEach(id => {
         let j = plantilla.find(x => x.id === id);
-        let mins = (p.tiemposJugadores && p.tiemposJugadores[id]) || 0;
+        let mins = minutosJugador(p, id);
         txt += `• #${j ? j.dorsal : ''} ${j ? j.nombre : ''}: *${mins} min*\n`;
       });
       copiarAlPortapapeles(txt);
@@ -1408,7 +1823,7 @@
       let rivalNom = p.rival || 'Rival';
       let marcadorOrdenado = esLoc ? `${p.golesFavor} - ${p.golesRival}` : `${p.golesRival} - ${p.golesFavor}`;
       let txt = `📋 *INFORME PASADO*\n🆚 ${esLoc ? NOMBRE_MI_EQUIPO : rivalNom} vs ${esLoc ? rivalNom : NOMBRE_MI_EQUIPO}\n⚽ ${marcadorOrdenado}\n\n`;
-      p.eventos.slice().reverse().forEach(ev => {
+      (p.eventos || []).slice().reverse().forEach(ev => {
         txt += `• ${formatearEventoParaWhatsApp(ev)}\n`;
       });
       copiarAlPortapapeles(txt);
@@ -1429,11 +1844,7 @@
       });
 
       todosLosPartidos.forEach(p => {
-        if (p.tiemposJugadores) {
-          Object.keys(p.tiemposJugadores).forEach(id => {
-            if (statsMins[id] !== undefined) statsMins[id] += p.tiemposJugadores[id] || 0;
-          });
-        }
+        sumarMinutosPartido(p, statsMins);
         if (p.eventos) {
           p.eventos.forEach(ev => {
             if (ev.tipo === 'GOL') {
@@ -1442,11 +1853,11 @@
             }
             if (ev.tipo === 'TARJETA') {
               if (ev.jugadorId && statsTarjetas[ev.jugadorId]) {
-                if (ev.subtipo === 'Amarilla' || (ev.texto && ev.texto.includes('Amarilla'))) {
+                if (subtipoTarjeta(ev) === 'Amarilla') {
                   statsTarjetas[ev.jugadorId].amarillas++;
                   statsTarjetas[ev.jugadorId].total++;
                 }
-                if (ev.subtipo === 'Roja' || (ev.texto && ev.texto.includes('Roja'))) {
+                if (subtipoTarjeta(ev) === 'Roja') {
                   statsTarjetas[ev.jugadorId].rojas++;
                   statsTarjetas[ev.jugadorId].total++;
                 }
