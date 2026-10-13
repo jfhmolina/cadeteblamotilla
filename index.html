@@ -594,6 +594,7 @@
       p.inicioTs = p.inicioTs || null;
       p.iniciado = !!p.iniciado;
       p.ultimoCorteSeg = (p.ultimoCorteSeg === null || p.ultimoCorteSeg === undefined) ? null : num(p.ultimoCorteSeg);
+      p.offsetPeriodoSeg = num(p.offsetPeriodoSeg);
       p.periodo = p.periodo || '1ª Parte';
       p.condicion = p.condicion || 'Local';
       p.rival = p.rival || '';
@@ -717,6 +718,7 @@
         inicioTs: null,
         iniciado: false,
         ultimoCorteSeg: null,
+        offsetPeriodoSeg: 0,
         periodo: '1ª Parte',
         convocados: plantilla.filter(j => j.activo !== false).map(j => j.id), 
         titulares: [], 
@@ -921,7 +923,8 @@
     });
 
     function actualizarRelojUI() {
-      const total = segundosActuales();
+      // El cronómetro visible arranca de cero en cada parte; el tiempo de jugadores y los minutos de los sucesos siguen el reloj total
+      const total = Math.max(0, segundosActuales() - num(partidoActual.offsetPeriodoSeg));
       let m = String(Math.floor(total / 60)).padStart(2, '0');
       let s = String(total % 60).padStart(2, '0');
       document.getElementById('cronometro').innerText = `${m}:${s}`;
@@ -929,9 +932,16 @@
 
     function cambiarPeriodo() {
       if (soloLectura) return;
+      if (partidoActual.corriendo) {
+        alert('Pausa el tiempo antes de cambiar de parte.');
+        return;
+      }
       partidoActual.periodo = partidoActual.periodo === '1ª Parte' ? '2ª Parte' : '1ª Parte';
+      // Al pasar a la 2ª parte el cronómetro vuelve a 00:00 (los segundos de cada jugador no se tocan)
+      partidoActual.offsetPeriodoSeg = partidoActual.periodo === '2ª Parte' ? segundosActuales() : 0;
       document.getElementById('periodoTag').innerText = partidoActual.periodo;
-      guardarCampos(['periodo']);
+      guardarCampos(['periodo', 'offsetPeriodoSeg']);
+      actualizarRelojUI();
     }
 
     // ===== MINUTOS POR JUGADOR (segundos reales, no saltos de minuto) =====
