@@ -111,18 +111,22 @@
             <span class="text-3xl group-hover:scale-110 transition">🟨</span>
             <span class="text-amber-400 text-xs font-extrabold">TARJETA</span>
           </button>
-          <button onclick="abrirModalNota()" class="bg-slate-900 hover:bg-slate-800 border border-slate-700/80 p-4 rounded-2xl font-bold text-sm shadow-lg flex flex-col items-center justify-center gap-1.5 active:scale-[0.97] transition group">
-            <span class="text-3xl group-hover:scale-110 transition">📝</span>
-            <span class="text-slate-300 text-xs font-extrabold">NOTA RÁPIDA</span>
+          <button onclick="abrirModalOcasion()" class="bg-slate-900 hover:bg-slate-800 border border-slate-700/80 p-4 rounded-2xl font-bold text-sm shadow-lg flex flex-col items-center justify-center gap-1.5 active:scale-[0.97] transition group">
+            <span class="text-3xl group-hover:scale-110 transition">🎯</span>
+            <span class="text-slate-300 text-xs font-extrabold">OCASIÓN / PARADA</span>
           </button>
         </div>
 
-        <button onclick="abrirModalOcasion()" class="w-full bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 py-3 rounded-2xl font-bold text-xs shadow flex items-center justify-center gap-2 transition active:scale-[0.99]">
-          🎯 OCASIÓN / PARADA
+        <button onclick="abrirModalNota()" class="w-full bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 py-3 rounded-2xl font-bold text-xs shadow flex items-center justify-center gap-2 transition active:scale-[0.99]">
+          📝 NOTA RÁPIDA
         </button>
 
         <button onclick="registrarGolRival()" class="w-full bg-rose-950/30 hover:bg-rose-900/40 text-rose-400 border border-rose-800/40 py-3 rounded-2xl font-bold text-xs shadow flex items-center justify-center gap-2 transition active:scale-[0.99]">
           ⚠ + GOL RIVAL EN CONTRA
+        </button>
+
+        <button onclick="abrirModalTarjetaRival()" class="w-full bg-amber-950/30 hover:bg-amber-900/40 text-amber-400 border border-amber-800/40 py-3 rounded-2xl font-bold text-xs shadow flex items-center justify-center gap-2 transition active:scale-[0.99]">
+          🟨 / 🟥 TARJETA AL RIVAL
         </button>
 
         <!-- CRONOLOGÍA -->
@@ -172,7 +176,10 @@
         <div id="contenedorResumenEquipo" class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg space-y-3">
           <div class="flex justify-between items-center">
             <h2 class="text-xs font-extrabold text-emerald-400 uppercase tracking-wider">🏆 Métricas del Equipo (Global Top 3)</h2>
-            <button onclick="copiarMetricasEquipoWhatsApp()" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲 Copiar Informe</button>
+            <div class="flex items-center gap-1.5">
+              <button onclick="exportarTemporada()" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Exportar todos los partidos">⬇️</button>
+              <button onclick="copiarMetricasEquipoWhatsApp()" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-400 p-1.5 rounded-xl border border-slate-700" title="Copiar informe">📲 Copiar Informe</button>
+            </div>
           </div>
           <div id="metricasEquipoBody" class="space-y-3 text-xs"></div>
         </div>
@@ -286,6 +293,18 @@
     </div>
   </div>
 
+  <div id="modalTarjetaRival" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 w-full max-w-md rounded-3xl p-5 border border-slate-800 space-y-3 shadow-2xl">
+      <h3 class="text-sm font-extrabold text-amber-400 uppercase tracking-wider">🟨 / 🟥 Tarjeta al Rival</h3>
+      <div><label for="selTipoTarjetaRival" class="text-xs font-bold text-slate-400 block mb-1">Tipo de Tarjeta:</label><select id="selTipoTarjetaRival" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white"><option value="Amarilla">🟨 Tarjeta Amarilla</option><option value="Roja">🟥 Tarjeta Roja</option></select></div>
+      <div><label for="txtDorsalRival" class="text-xs font-bold text-slate-400 block mb-1">Dorsal del jugador rival:</label><input type="number" inputmode="numeric" min="0" max="99" id="txtDorsalRival" placeholder="Ej: 7" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500 transition"></div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="cerrarModal('modalTarjetaRival')" class="flex-1 bg-slate-800 text-slate-300 py-2.5 rounded-xl text-xs font-bold">Cancelar</button>
+        <button onclick="confirmarTarjetaRival()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Registrar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modalTarjeta" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 w-full max-w-md rounded-3xl p-5 border border-slate-800 space-y-3 shadow-2xl">
       <h3 class="text-sm font-extrabold text-amber-400 uppercase tracking-wider">🟨 / 🟥 Tarjeta</h3>
@@ -359,7 +378,7 @@
       soloLectura = valor;
       const ocultar = (el) => { if (el) el.classList.toggle('hidden', soloLectura); };
       document.querySelectorAll(
-        '[onclick="prepararPartidoModal()"], [onclick="registrarGolRival()"], [onclick="agregarJugadorManual()"], [onclick="abrirModalOcasion()"]'
+        '[onclick="prepararPartidoModal()"], [onclick="registrarGolRival()"], [onclick="agregarJugadorManual()"], [onclick="abrirModalOcasion()"], [onclick="abrirModalNota()"], [onclick="abrirModalTarjetaRival()"]'
       ).forEach(ocultar);
       ocultar(document.getElementById('btnTimer').parentElement);
       ocultar(document.querySelector('[onclick="abrirModalGol()"]').parentElement);
@@ -459,6 +478,7 @@
           segundaAmarilla: ev.segundaAmarilla === true,
           texto: textoPlano(ev.texto)
         };
+        if (ev.tipo === 'TARJETA_RIVAL') out.dorsalRival = (ev.dorsalRival === undefined) ? null : ev.dorsalRival;
         if (ev.tipo === 'GOL_RIVAL') {
           const porteros = [...enCampo].filter(esPorteroId);
           out.porteroEnPorteria = (cambiosCompletos && porteros.length === 1) ? info(porteros[0]) : null;
@@ -510,6 +530,36 @@
       const a = document.createElement('a');
       a.href = url;
       a.download = nombreArchivo;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function exportarTemporada() {
+      if (!historialPartidos.length) {
+        alert("Todavía no hay partidos guardados en el historial para exportar.");
+        return;
+      }
+      const partidos = historialPartidos.slice()
+        .sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')) || (num(a.id) - num(b.id)))
+        .map(p => construirExportacionPartido(p));
+      const datos = {
+        version: 1,
+        tipo: 'temporada',
+        exportadoEn: new Date().toISOString(),
+        equipo: NOMBRE_MI_EQUIPO,
+        porteros: { dorsales: DORSALES_PORTERO },
+        plantilla: plantilla.map(j => ({ id: j.id, dorsal: j.dorsal, nombre: j.nombre, portero: esPorteroId(j.id), activo: j.activo !== false })),
+        totalPartidos: partidos.length,
+        partidos: partidos
+      };
+      const hoy = new Date().toISOString().slice(0, 10);
+      const blob = new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `temporada_La_Motilla_B_${hoy}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1336,6 +1386,36 @@
       if (aviso) setTimeout(() => alert(aviso), 50);
     }
 
+    function abrirModalTarjetaRival() {
+      if (soloLectura) return;
+      document.getElementById('selTipoTarjetaRival').value = 'Amarilla';
+      document.getElementById('txtDorsalRival').value = '';
+      document.getElementById('modalTarjetaRival').classList.remove('hidden');
+    }
+
+    function confirmarTarjetaRival() {
+      if (soloLectura) return;
+      const tipo = document.getElementById('selTipoTarjetaRival').value === 'Roja' ? 'Roja' : 'Amarilla';
+      const bruto = document.getElementById('txtDorsalRival').value.trim();
+      const dorsal = /^\d{1,2}$/.test(bruto) ? parseInt(bruto, 10) : null;
+      if (bruto !== '' && dorsal === null) {
+        alert("El dorsal debe ser un número de 0 a 99.");
+        return;
+      }
+      const evento = {
+        id: Date.now(),
+        tipo: 'TARJETA_RIVAL',
+        subtipo: tipo,
+        minuto: minutoActual(),
+        periodo: partidoActual.periodo,
+        dorsalRival: dorsal,
+        texto: `<b>Tarjeta ${tipo} al ${esc(partidoActual.rival || 'equipo rival')}:</b> ${dorsal === null ? 'dorsal sin indicar' : '#' + dorsal}`
+      };
+      cerrarModal('modalTarjetaRival');
+      anadirEvento(evento);
+      renderizarPartidoActual();
+    }
+
     function abrirModalNota() {
       if (soloLectura) return;
       document.getElementById('txtNota').value = '';
@@ -1428,6 +1508,7 @@
         if(ev.tipo === 'CAMBIO') { color = 'border-purple-500 bg-purple-950/20'; icono = '🔁'; }
         if(ev.tipo === 'TARJETA') { color = 'border-amber-500 bg-amber-950/20'; icono = '🟨'; }
         if(ev.tipo === 'OCASION') { icono = ev.subtipo === 'Parada' ? '🧤' : '🎯'; }
+        if(ev.tipo === 'TARJETA_RIVAL') { color = 'border-amber-500 bg-amber-950/20'; icono = ev.subtipo === 'Roja' ? '🟥' : '🟨'; }
 
         let div = document.createElement('div');
         div.className = `p-3 rounded-2xl border-l-4 ${color} text-xs flex justify-between items-center shadow-sm`;
@@ -1944,6 +2025,8 @@
         icono = '🔁 ';
       } else if (ev.tipo === 'OCASION') {
         icono = ev.subtipo === 'Parada' ? '🧤 ' : '🎯 ';
+      } else if (ev.tipo === 'TARJETA_RIVAL') {
+        icono = ev.subtipo === 'Roja' ? '🟥 ' : '🟨 ';
       } else if (ev.tipo === 'NOTA') {
         icono = '📝 ';
       }
