@@ -97,6 +97,33 @@
           </button>
         </div>
 
+        <!-- CAMPO: jugadores en juego (colocación libre) -->
+        <div id="bloqueCampo" class="bg-slate-900 border border-slate-800 rounded-2xl shadow-lg overflow-hidden">
+          <button onclick="toggleCampo()" class="w-full p-3 flex items-center justify-between text-xs font-extrabold text-slate-300 uppercase tracking-wider">
+            <span>🏟 Campo · jugadores en juego</span>
+            <span id="campoFlecha" class="text-slate-500">▾</span>
+          </button>
+          <div id="campoCuerpo" class="hidden px-3 pb-3 space-y-2">
+            <div id="campoPitch" class="relative w-full rounded-xl overflow-hidden border border-emerald-900/60 select-none" style="position:relative;aspect-ratio:10/11;background:linear-gradient(#14532d,#166534);">
+              <svg viewBox="0 0 100 110" class="absolute inset-0 w-full h-full pointer-events-none" style="position:absolute;top:0;left:0;width:100%;height:100%;" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="0.5">
+                <rect x="2" y="2" width="96" height="106"/>
+                <line x1="2" y1="55" x2="98" y2="55"/>
+                <circle cx="50" cy="55" r="9"/>
+                <rect x="25" y="2" width="50" height="17"/>
+                <rect x="38" y="2" width="24" height="7"/>
+                <rect x="25" y="91" width="50" height="17"/>
+                <rect x="38" y="101" width="24" height="7"/>
+              </svg>
+              <div id="campoJugadores" class="absolute inset-0" style="position:absolute;top:0;left:0;right:0;bottom:0;"></div>
+            </div>
+            <p id="campoAyuda" class="text-[10px] text-slate-500 text-center">Arrastra a un jugador para colocarlo · tócalo para hacer un cambio</p>
+            <div>
+              <div class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Banquillo (menos minutos primero)</div>
+              <div id="campoBanquillo" class="flex flex-wrap gap-1.5"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- GRID ACCIONES RÁPIDAS -->
         <div class="grid grid-cols-2 gap-3">
           <button onclick="abrirModalGol()" class="bg-slate-900 hover:bg-slate-800 border border-blue-500/30 p-4 rounded-2xl font-bold text-sm shadow-lg flex flex-col items-center justify-center gap-1.5 active:scale-[0.97] transition group">
@@ -645,6 +672,7 @@
       p.iniciado = !!p.iniciado;
       p.ultimoCorteSeg = (p.ultimoCorteSeg === null || p.ultimoCorteSeg === undefined) ? null : num(p.ultimoCorteSeg);
       p.offsetPeriodoSeg = num(p.offsetPeriodoSeg);
+      p.posCampo = aObjeto(p.posCampo);
       p.periodo = p.periodo || '1ª Parte';
       p.condicion = p.condicion || 'Local';
       p.rival = p.rival || '';
@@ -769,6 +797,7 @@
         iniciado: false,
         ultimoCorteSeg: null,
         offsetPeriodoSeg: 0,
+        posCampo: {},
         periodo: '1ª Parte',
         convocados: plantilla.filter(j => j.activo !== false).map(j => j.id), 
         titulares: [], 
@@ -1291,6 +1320,7 @@
         return;
       }
 
+      campoCambio(saleId, entraId);
       consolidarMinutos();
       partidoActual.enCampo = partidoActual.enCampo.filter(id => id !== saleId);
       partidoActual.enCampo.push(entraId);
@@ -1306,7 +1336,7 @@
       };
 
       cerrarModal('modalSustitucion');
-      anadirEvento(evento, ['enCampo'].concat(CAMPOS_MINUTOS));
+      anadirEvento(evento, ['enCampo', 'posCampo'].concat(CAMPOS_MINUTOS));
       renderizarPartidoActual();
     }
 
@@ -1472,6 +1502,7 @@
     }
 
     function renderizarPartidoActual() {
+      try { renderizarCampo(); } catch (e) { console.warn('campo', e); }
       let esLocal = partidoActual.condicion === 'Local';
       let rivalNombre = partidoActual.rival || 'Rival';
       let cabeceraOrdenada = esLocal ? `${NOMBRE_MI_EQUIPO} vs ${rivalNombre}` : `${rivalNombre} vs ${NOMBRE_MI_EQUIPO}`;
@@ -1523,6 +1554,182 @@
       });
     }
 
+
+    // ===== CAMPO: jugadores en juego con colocación libre =====
+    // partidoActual.posCampo = { idJugador: {x, y} } en % del campo (x: izquierda-derecha, y: arriba-abajo; la portería propia abajo)
+    let campoDrag = null;
+    let campoIntervalo = null;
+
+    function campoAbierto() {
+      try { return localStorage.getItem('futbol_campo_abierto') === '1'; } catch (e) { return false; }
+    }
+    function toggleCampo() {
+      const abrir = !campoAbierto();
+      try { localStorage.setItem('futbol_campo_abierto', abrir ? '1' : '0'); } catch (e) {}
+      renderizarCampo();
+    }
+
+    function campoIdsEnJuego() {
+      return partidoActual.enCampo.filter(id => !partidoActual.expulsados.includes(id));
+    }
+
+    // Posición a mostrar: la guardada o, si aún no se ha colocado, una por defecto (portero abajo, resto en filas)
+    function campoPosiciones() {
+      const res = {};
+      const sinPos = [];
+      campoIdsEnJuego().forEach(id => {
+        const p = partidoActual.posCampo && partidoActual.posCampo[id];
+        if (p && typeof p.x === 'number' && typeof p.y === 'number') res[id] = { x: p.x, y: p.y };
+        else sinPos.push(id);
+      });
+      const porteros = sinPos.filter(esPorteroId);
+      const resto = sinPos.filter(id => !esPorteroId(id));
+      porteros.forEach((id, i) => { res[id] = { x: 50 + i * 12, y: 88 }; });
+      const POR_FILA = 4;
+      const filas = Math.ceil(resto.length / POR_FILA);
+      resto.forEach((id, i) => {
+        const fila = Math.floor(i / POR_FILA);
+        const enFila = Math.min(POR_FILA, resto.length - fila * POR_FILA);
+        const col = i % POR_FILA;
+        res[id] = { x: (100 / (enFila + 1)) * (col + 1), y: 70 - fila * Math.min(18, 55 / Math.max(1, filas)) };
+      });
+      return res;
+    }
+
+    // Guarda en partidoActual.posCampo lo que se está viendo (para que nadie "salte" al cambiar de jugadores)
+    function campoFijarPosiciones() {
+      if (!partidoActual.posCampo) partidoActual.posCampo = {};
+      const pos = campoPosiciones();
+      Object.keys(pos).forEach(id => {
+        partidoActual.posCampo[id] = { x: Math.round(pos[id].x * 10) / 10, y: Math.round(pos[id].y * 10) / 10 };
+      });
+    }
+
+    // Antes de un cambio: el que entra ocupa el sitio del que sale
+    function campoCambio(saleId, entraId) {
+      try {
+        campoFijarPosiciones();
+        const ps = partidoActual.posCampo[saleId];
+        if (ps) partidoActual.posCampo[entraId] = { x: ps.x, y: ps.y };
+      } catch (e) { console.warn('campoCambio', e); }
+    }
+
+    function campoTieneAmarilla(id) {
+      return partidoActual.eventos.some(e => e.tipo === 'TARJETA' && e.jugadorId === id && subtipoTarjeta(e) === 'Amarilla');
+    }
+
+    function renderizarCampo() {
+      const cuerpo = document.getElementById('campoCuerpo');
+      if (!cuerpo) return;
+      const abierto = campoAbierto();
+      cuerpo.classList.toggle('hidden', !abierto);
+      document.getElementById('campoFlecha').innerText = abierto ? '▴' : '▾';
+      if (campoIntervalo) { clearInterval(campoIntervalo); campoIntervalo = null; }
+      if (!abierto) return;
+      campoIntervalo = setInterval(actualizarMinutosCampo, 5000);
+      if (campoDrag) return; // no repintar mientras se arrastra
+
+      const capa = document.getElementById('campoJugadores');
+      capa.innerHTML = '';
+      const ids = campoIdsEnJuego();
+      const pos = campoPosiciones();
+      document.getElementById('campoAyuda').innerText = soloLectura
+        ? 'Jugadores en juego ahora mismo'
+        : 'Arrastra a un jugador para colocarlo · tócalo para hacer un cambio';
+
+      if (ids.length === 0) {
+        capa.innerHTML = '<div class="absolute inset-0 flex items-center justify-center text-center text-[11px] text-white/80 px-6">Aún no hay jugadores en el campo. Marca los titulares en «Configurar Convocatoria y Datos».</div>';
+      }
+
+      ids.forEach(id => {
+        const j = plantilla.find(x => x.id === id);
+        const portero = esPorteroId(id);
+        const amarilla = campoTieneAmarilla(id);
+        const el = document.createElement('div');
+        el.setAttribute('data-id', id);
+        el.style.cssText = `position:absolute;left:${pos[id].x}%;top:${pos[id].y}%;transform:translate(-50%,-50%);width:56px;text-align:center;touch-action:none;cursor:${soloLectura ? 'default' : 'grab'};`;
+        el.innerHTML = `
+          <div style="position:relative;width:32px;height:32px;margin:0 auto;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);${portero ? 'background:#7c3aed;color:#fff;' : 'background:#f1f5f9;color:#0f172a;'}">
+            ${j ? esc(j.dorsal) : '?'}
+            ${amarilla ? '<span style="position:absolute;top:-4px;right:-5px;width:9px;height:12px;background:#f59e0b;border-radius:2px;border:1px solid #fff;"></span>' : ''}
+          </div>
+          <div style="font-size:9px;line-height:1.1;color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${j ? esc(String(j.nombre).slice(0, 10)) : ''}</div>
+          <div data-min style="font-size:9px;line-height:1.1;color:#bbf7d0;font-family:monospace;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.8);">${minutosJugador(partidoActual, id)}'</div>`;
+        if (!soloLectura) {
+          el.addEventListener('pointerdown', ev => campoPointerDown(ev, id, el));
+          el.addEventListener('pointermove', campoPointerMove);
+          el.addEventListener('pointerup', campoPointerUp);
+          el.addEventListener('pointercancel', campoPointerCancel);
+        }
+        capa.appendChild(el);
+      });
+
+      // Banquillo: los que menos han jugado, primero
+      const ban = document.getElementById('campoBanquillo');
+      ban.innerHTML = '';
+      const suplentes = partidoActual.convocados
+        .filter(id => !partidoActual.enCampo.includes(id) && !partidoActual.expulsados.includes(id))
+        .map(id => ({ id, j: plantilla.find(x => x.id === id), m: minutosJugador(partidoActual, id) }))
+        .filter(x => x.j)
+        .sort((a, b) => a.m - b.m);
+      if (suplentes.length === 0) {
+        ban.innerHTML = '<span class="text-[10px] text-slate-500">Sin suplentes disponibles</span>';
+      }
+      suplentes.forEach(x => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-ban', x.id);
+        b.className = 'px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[10px] text-slate-200 font-bold';
+        b.innerHTML = `#${esc(x.j.dorsal)} ${esc(String(x.j.nombre).slice(0, 9))} <span class="text-emerald-400 font-mono">${x.m}'</span>`;
+        if (!soloLectura) b.addEventListener('click', () => campoAbrirCambio(null, x.id));
+        ban.appendChild(b);
+      });
+    }
+
+    function actualizarMinutosCampo() {
+      document.querySelectorAll('#campoJugadores [data-id]').forEach(el => {
+        const m = el.querySelector('[data-min]');
+        if (m) m.innerText = minutosJugador(partidoActual, Number(el.getAttribute('data-id'))) + "'";
+      });
+    }
+
+    function campoAbrirCambio(saleId, entraId) {
+      abrirModalSustitucion();
+      if (saleId !== null) document.getElementById('selSale').value = String(saleId);
+      if (entraId !== null) document.getElementById('selEntra').value = String(entraId);
+    }
+
+    function campoPointerDown(ev, id, el) {
+      if (soloLectura) return;
+      campoDrag = { id, el, rect: document.getElementById('campoPitch').getBoundingClientRect(), sx: ev.clientX, sy: ev.clientY, moved: false, x: 0, y: 0 };
+      try { el.setPointerCapture(ev.pointerId); } catch (e) {}
+      ev.preventDefault();
+    }
+    function campoPointerMove(ev) {
+      const d = campoDrag;
+      if (!d) return;
+      if (!d.moved && Math.hypot(ev.clientX - d.sx, ev.clientY - d.sy) < 6) return;
+      d.moved = true;
+      d.x = Math.min(94, Math.max(6, ((ev.clientX - d.rect.left) / d.rect.width) * 100));
+      d.y = Math.min(94, Math.max(6, ((ev.clientY - d.rect.top) / d.rect.height) * 100));
+      d.el.style.left = d.x + '%';
+      d.el.style.top = d.y + '%';
+    }
+    function campoPointerUp(ev) {
+      const d = campoDrag;
+      if (!d) return;
+      campoDrag = null;
+      if (!d.moved) { campoAbrirCambio(d.id, null); return; }
+      campoFijarPosiciones();
+      partidoActual.posCampo[d.id] = { x: Math.round(d.x * 10) / 10, y: Math.round(d.y * 10) / 10 };
+      guardarCampos(['posCampo']);
+      renderizarCampo();
+    }
+    function campoPointerCancel() {
+      campoDrag = null;
+      renderizarCampo();
+    }
+
     function eliminarEvento(id) {
       if (soloLectura) return;
       const ev = partidoActual.eventos.find(e => e.id === id);
@@ -1546,10 +1753,11 @@
       // Deshacer el cambio si se borra una sustitución (solo las registradas con jugadores identificados)
       if (ev.tipo === 'CAMBIO' && ev.saleId && ev.entraId) {
         if (partidoActual.enCampo.includes(ev.entraId) && !partidoActual.enCampo.includes(ev.saleId) && !partidoActual.expulsados.includes(ev.saleId)) {
+          campoCambio(ev.entraId, ev.saleId);
           consolidarMinutos();
           partidoActual.enCampo = partidoActual.enCampo.filter(x => x !== ev.entraId);
           partidoActual.enCampo.push(ev.saleId);
-          campos = campos.concat(['enCampo'], CAMPOS_MINUTOS);
+          campos = campos.concat(['enCampo', 'posCampo'], CAMPOS_MINUTOS);
         }
       }
 
